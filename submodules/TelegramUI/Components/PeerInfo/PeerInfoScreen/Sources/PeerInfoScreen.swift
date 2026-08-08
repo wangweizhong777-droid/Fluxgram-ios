@@ -182,6 +182,10 @@ enum PeerInfoSettingsSection {
     case rememberPassword
     case emojiStatus
     case profileColor
+    case fluxgram
+    case fluxgramDownloads
+    case fluxgramFavorites
+    case fluxgramShortVideos
     case powerSaving
     case businessSetup
     case profile

@@ -86,7 +86,7 @@ final class SecureIdDocumentFormController: FormController<SecureIdDocumentFormS
         }
         self.navigationItem.leftBarButtonItem = UIBarButtonItem(title: self.presentationData.strings.Common_Cancel, style: .plain, target: self, action: #selector(self.cancelPressed))
         
-        self.doneItem = UIBarButtonItem(title: self.presentationData.strings.Common_Done, style: .done, target: self, action: #selector(self.donePressed))
+        self.doneItem = UIBarButtonItem(title: self.presentationData.strings.Common_Done, style: UIBarButtonItem.Style(rawValue: 2) ?? .plain, target: self, action: #selector(self.donePressed))
         self.navigationItem.rightBarButtonItem = self.doneItem
     }
     

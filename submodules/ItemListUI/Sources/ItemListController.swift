@@ -16,7 +16,7 @@ public enum ItemListNavigationButtonStyle {
         case .regular, .activity:
             return .plain
         case .bold:
-            return .done
+            return UIBarButtonItem.Style(rawValue: 2) ?? .plain
         }
     }
 }

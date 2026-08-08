@@ -30,6 +30,9 @@ objc_library(
     ]),
     copts = [
         "-Werror",
+        # Legacy camera headers intentionally expose APIs deprecated by newer
+        # SDKs while remaining required by the compatibility implementation.
+        "-Wno-deprecated-declarations",
     ],
     includes = [
         "PublicHeaders",

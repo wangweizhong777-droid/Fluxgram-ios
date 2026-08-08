@@ -81,7 +81,7 @@ public class ItemListActivityTextItemNode: ListViewItemNode {
         self.titleNode = TextNode()
         self.titleNode.isUserInteractionEnabled = false
         self.titleNode.contentMode = .left
-        self.titleNode.contentsScale = UIScreen.main.scale
+        self.titleNode.contentsScale = UIScreenScale
         
         self.activityIndicator = ActivityIndicator(type: ActivityIndicatorType.custom(.black, 16.0, 2.0, false))
         

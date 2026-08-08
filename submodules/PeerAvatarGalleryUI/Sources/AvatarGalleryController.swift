@@ -32,7 +32,8 @@ private final class AvatarGalleryContextReferenceContentSource: ContextReference
     }
 
     func transitionInfo() -> ContextControllerReferenceViewInfo? {
-        return ContextControllerReferenceViewInfo(referenceView: self.sourceView, contentAreaInScreenSpace: UIScreen.main.bounds, actionsPosition: self.actionsOnTop ? .top : .bottom)
+        let screenBounds = self.sourceView.window?.windowScene?.screen.bounds ?? self.sourceView.bounds
+        return ContextControllerReferenceViewInfo(referenceView: self.sourceView, contentAreaInScreenSpace: screenBounds, actionsPosition: self.actionsOnTop ? .top : .bottom)
     }
 }
 

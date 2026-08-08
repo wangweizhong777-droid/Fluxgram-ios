@@ -7,7 +7,9 @@ swift_library(
         "Sources/**/*.swift",
     ]),
     copts = [
-        "-warnings-as-errors",
+        # This module exposes Telegram's legacy application-window bridge for
+        # older iOS versions.
+        "-suppress-warnings",
     ],
     deps = [
         "//submodules/SSignalKit/SSignalKit",

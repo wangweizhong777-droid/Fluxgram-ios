@@ -82,7 +82,7 @@ class ChatListNoticeItem: ListViewItem {
     }
 }
 
-private let separatorHeight = 1.0 / UIScreen.main.scale
+private let separatorHeight = 1.0 / UIScreenScale
 
 private let titleFont = Font.semibold(15.0)
 private let titleBoldFont = Font.bold(15.0)

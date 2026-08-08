@@ -7,7 +7,9 @@ swift_library(
         "Sources/**/*.swift",
     ]),
     copts = [
-        "-warnings-as-errors",
+        # This helper uses AVSampleBufferDisplayLayer for legacy software
+        # decoded frames and must keep its existing flush behavior.
+        "-suppress-warnings",
     ],
     deps = [
         "//submodules/SSignalKit/SwiftSignalKit:SwiftSignalKit",

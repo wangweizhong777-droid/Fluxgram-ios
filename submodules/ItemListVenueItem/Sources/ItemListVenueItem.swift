@@ -159,12 +159,12 @@ public class ItemListVenueItemNode: ListViewItemNode, ItemListItemNode {
         self.titleNode = TextNode()
         self.titleNode.isUserInteractionEnabled = false
         self.titleNode.contentMode = .left
-        self.titleNode.contentsScale = UIScreen.main.scale
+        self.titleNode.contentsScale = UIScreenScale
     
         self.addressNode = TextNode()
         self.addressNode.isUserInteractionEnabled = false
         self.addressNode.contentMode = .left
-        self.addressNode.contentsScale = UIScreen.main.scale
+        self.addressNode.contentsScale = UIScreenScale
         
         self.infoButton = HighlightableButtonNode()
     

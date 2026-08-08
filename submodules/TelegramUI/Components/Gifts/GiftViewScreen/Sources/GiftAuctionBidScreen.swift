@@ -3582,7 +3582,8 @@ private final class GiftViewContextReferenceContentSource: ContextReferenceConte
     }
     
     func transitionInfo() -> ContextControllerReferenceViewInfo? {
-        return ContextControllerReferenceViewInfo(referenceView: self.sourceView, contentAreaInScreenSpace: UIScreen.main.bounds)
+        let screenBounds = self.sourceView.window?.windowScene?.screen.bounds ?? self.sourceView.bounds
+        return ContextControllerReferenceViewInfo(referenceView: self.sourceView, contentAreaInScreenSpace: screenBounds)
     }
 }
 

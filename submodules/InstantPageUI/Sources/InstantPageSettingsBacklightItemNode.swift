@@ -5,6 +5,11 @@ import Display
 import AppBundle
 import LegacyComponents
 
+private func instantPageActiveScreen() -> UIScreen? {
+    let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+    return scenes.first(where: { $0.activationState == .foregroundActive })?.screen ?? scenes.first?.screen
+}
+
 func generateKnobImage() -> UIImage? {
     return generateImage(CGSize(width: 40.0, height: 40.0), rotatedContext: { size, context in
         context.clear(CGRect(origin: CGPoint(), size: size))
@@ -41,7 +46,7 @@ final class InstantPageSettingsBacklightItemNode: InstantPageSettingsItemNode {
         
         self.updateTheme(theme)
         
-        self.sliderView.value = UIScreen.main.brightness * 100.0
+        self.sliderView.value = (instantPageActiveScreen()?.brightness ?? 1.0) * 100.0
         self.sliderView.addTarget(self, action: #selector(self.sliderChanged), for: .valueChanged)
         self.view.addSubview(self.sliderView)
         
@@ -73,6 +78,6 @@ final class InstantPageSettingsBacklightItemNode: InstantPageSettingsItemNode {
     }
     
     @objc func sliderChanged() {
-        UIScreen.main.brightness = self.sliderView.value / 100.0
+        instantPageActiveScreen()?.brightness = self.sliderView.value / 100.0
     }
 }

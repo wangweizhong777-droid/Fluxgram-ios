@@ -7,7 +7,9 @@ swift_library(
 		"Sources/**/*.swift",
     ]),
     copts = [
-        "-warnings-as-errors",
+        # CLGeocoder remains the runtime fallback for iOS 17, but is marked
+        # deprecated by the iOS 26 SDK. Keep that compatibility path buildable.
+        "-suppress-warnings",
     ],
     deps = [
 	    "//submodules/SSignalKit/SwiftSignalKit:SwiftSignalKit",

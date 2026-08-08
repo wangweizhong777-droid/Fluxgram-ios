@@ -216,7 +216,7 @@ final class StoryBlobLayer: MetalEngineSubjectLayer, MetalEngineSubject {
             return
         }
         
-        let drawableSize = CGSize(width: self.bounds.width * UIScreen.main.scale, height: self.bounds.height * UIScreen.main.scale)
+        let drawableSize = CGSize(width: self.bounds.width * UIScreenScale, height: self.bounds.height * UIScreenScale)
         
         context.renderToLayer(spec: RenderLayerSpec(size: RenderSize(width: Int(drawableSize.width), height: Int(drawableSize.height))), state: RenderState.self, layer: self, commands: { encoder, placement in
             let effectiveRect = placement.effectiveRect

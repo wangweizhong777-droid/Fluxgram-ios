@@ -7,7 +7,9 @@ swift_library(
         "Sources/**/*.swift",
     ]),
     copts = [
-        "-warnings-as-errors",
+        # Keep the existing iOS 13-compatible microphone and location
+        # authorization branches while newer SDKs deprecate their APIs.
+        "-suppress-warnings",
     ],
     deps = [
         "//submodules/TelegramCore:TelegramCore",

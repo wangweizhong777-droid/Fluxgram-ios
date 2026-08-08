@@ -408,7 +408,7 @@ public final class PaymentCardEntryScreen: ViewControllerComponentContainer {
         
         self.title = "Add Payment Method"
         
-        self.doneItem = UIBarButtonItem(title: "Add", style: .done, target: self, action: #selector(self.donePressed))
+        self.doneItem = UIBarButtonItem(title: "Add", style: UIBarButtonItem.Style(rawValue: 2) ?? .plain, target: self, action: #selector(self.donePressed))
         self.navigationItem.setRightBarButton(self.doneItem, animated: false)
         self.doneItem?.isEnabled = false
         

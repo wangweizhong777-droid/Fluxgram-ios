@@ -36,7 +36,13 @@ static bool _isDeviceRotating = false;
                 
                 if (NSClassFromString(@"NSUserActivity") == NULL) {
                     UIInterfaceOrientation orientation = [userInfo[@"UIWindowNewOrientationUserInfoKey"] integerValue];
-                    CGSize screenSize = [UIScreen mainScreen].bounds.size;
+                    CGSize screenSize = ((UIWindow *)object).bounds.size;
+                    if (@available(iOS 13.0, *)) {
+                        UIScreen *screen = ((UIWindow *)object).windowScene.screen;
+                        if (screen != nil) {
+                            screenSize = screen.bounds.size;
+                        }
+                    }
                     if (screenSize.width > screenSize.height)
                     {
                         CGFloat tmp = screenSize.height;

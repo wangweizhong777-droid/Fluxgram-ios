@@ -392,7 +392,7 @@ private final class TooltipScreenNode: ViewControllerTracingNode {
             self.arrowContainer.layer.addSublayer(maskLayer)
             
             self.backgroundMaskNode.layer.shouldRasterize = true
-            self.backgroundMaskNode.layer.rasterizationScale = UIScreen.main.scale
+            self.backgroundMaskNode.layer.rasterizationScale = self.backgroundMaskNode.view.window?.screen.scale ?? UIScreenScale
         }
         
         self.fontSize = fontSize

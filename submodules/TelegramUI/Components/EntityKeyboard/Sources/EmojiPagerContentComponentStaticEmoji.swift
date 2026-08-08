@@ -5,7 +5,7 @@ private func loadStaticEmojiMapping() -> [(EmojiPagerContentComponent.StaticEmoj
     guard let path = getAppBundle().path(forResource: "emoji1", ofType: "txt") else {
         return []
     }
-    guard let string = try? String(contentsOf: URL(fileURLWithPath: path)) else {
+    guard let string = try? String(contentsOf: URL(fileURLWithPath: path), encoding: .utf8) else {
         return []
     }
 

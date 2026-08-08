@@ -302,6 +302,7 @@ private final class PeerInfoContextReferenceContentSource: ContextReferenceConte
     }
     
     func transitionInfo() -> ContextControllerReferenceViewInfo? {
-        return ContextControllerReferenceViewInfo(referenceView: self.sourceNode.view, contentAreaInScreenSpace: UIScreen.main.bounds)
+        let screenBounds = self.sourceNode.view.window?.windowScene?.screen.bounds ?? self.sourceNode.view.bounds
+        return ContextControllerReferenceViewInfo(referenceView: self.sourceNode.view, contentAreaInScreenSpace: screenBounds)
     }
 }

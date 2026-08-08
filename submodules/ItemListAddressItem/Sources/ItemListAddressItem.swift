@@ -130,12 +130,12 @@ public class ItemListAddressItemNode: ListViewItemNode {
         self.labelNode = TextNode()
         self.labelNode.isUserInteractionEnabled = false
         self.labelNode.contentMode = .left
-        self.labelNode.contentsScale = UIScreen.main.scale
+        self.labelNode.contentsScale = UIScreenScale
         
         self.textNode = TextNode()
         self.textNode.isUserInteractionEnabled = false
         self.textNode.contentMode = .left
-        self.textNode.contentsScale = UIScreen.main.scale
+        self.textNode.contentsScale = UIScreenScale
         
         self.imageNode = TransformImageNode()
         self.imageNode.contentAnimations = [.firstUpdate, .subsequentUpdates]

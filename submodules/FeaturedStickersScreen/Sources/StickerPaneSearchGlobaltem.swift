@@ -208,12 +208,12 @@ public class StickerPaneSearchGlobalItemNode: GridItemNode {
         self.titleNode = TextNode()
         self.titleNode.isUserInteractionEnabled = false
         self.titleNode.contentMode = .left
-        self.titleNode.contentsScale = UIScreen.main.scale
+        self.titleNode.contentsScale = UIScreenScale
         
         self.descriptionNode = TextNode()
         self.descriptionNode.isUserInteractionEnabled = false
         self.descriptionNode.contentMode = .left
-        self.descriptionNode.contentsScale = UIScreen.main.scale
+        self.descriptionNode.contentsScale = UIScreenScale
         
         self.unreadNode = ASImageNode()
         self.unreadNode.isLayerBacked = true
@@ -223,7 +223,7 @@ public class StickerPaneSearchGlobalItemNode: GridItemNode {
         self.installTextNode = TextNode()
         self.installTextNode.isUserInteractionEnabled = false
         self.installTextNode.contentMode = .left
-        self.installTextNode.contentsScale = UIScreen.main.scale
+        self.installTextNode.contentsScale = UIScreenScale
         
         self.installBackgroundNode = ASImageNode()
         self.installBackgroundNode.isLayerBacked = true
@@ -235,7 +235,7 @@ public class StickerPaneSearchGlobalItemNode: GridItemNode {
         self.uninstallTextNode = TextNode()
         self.uninstallTextNode.isUserInteractionEnabled = false
         self.uninstallTextNode.contentMode = .left
-        self.uninstallTextNode.contentsScale = UIScreen.main.scale
+        self.uninstallTextNode.contentsScale = UIScreenScale
         
         self.uninstallBackgroundNode = ASImageNode()
         self.uninstallBackgroundNode.isLayerBacked = true

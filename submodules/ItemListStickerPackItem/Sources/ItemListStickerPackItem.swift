@@ -233,12 +233,12 @@ class ItemListStickerPackItemNode: ItemListRevealOptionsItemNode {
         self.titleNode = TextNode()
         self.titleNode.isUserInteractionEnabled = false
         self.titleNode.contentMode = .left
-        self.titleNode.contentsScale = UIScreen.main.scale
+        self.titleNode.contentsScale = UIScreenScale
         
         self.statusNode = TextNode()
         self.statusNode.isUserInteractionEnabled = false
         self.statusNode.contentMode = .left
-        self.statusNode.contentsScale = UIScreen.main.scale
+        self.statusNode.contentsScale = UIScreenScale
         
         self.unreadNode = ASImageNode()
         self.unreadNode.isLayerBacked = true
@@ -255,7 +255,7 @@ class ItemListStickerPackItemNode: ItemListRevealOptionsItemNode {
         self.installTextNode = TextNode()
         self.installTextNode.isUserInteractionEnabled = false
         self.installTextNode.contentMode = .left
-        self.installTextNode.contentsScale = UIScreen.main.scale
+        self.installTextNode.contentsScale = UIScreenScale
         
         self.selectionIconNode = ASImageNode()
         self.selectionIconNode.displaysAsynchronously = false

@@ -322,7 +322,7 @@ public class LegacyMessageInputPanelNode: ASDisplayNode, TGCaptionPanelView {
         let presentationData = self.context.sharedContext.currentPresentationData.with { $0 }
         let theme = defaultDarkColorPresentationTheme
         let isLandscape = width > maxHeight
-        let deviceMetrics = DeviceMetrics(screenSize: CGSize(width: width, height: maxHeight), scale: UIScreen.main.scale, statusBarHeight: 0.0, onScreenNavigationHeight: nil)
+        let deviceMetrics = DeviceMetrics(screenSize: CGSize(width: width, height: maxHeight), scale: UIScreenScale, statusBarHeight: 0.0, onScreenNavigationHeight: nil)
         let standardInputHeight = deviceMetrics.standardInputHeight(inLandscape: isLandscape)
         let keyboardWasHidden = self.inputPanelExternalState.isKeyboardHidden
 
@@ -940,6 +940,7 @@ private final class HeaderContextReferenceContentSource: ContextReferenceContent
     }
 
     func transitionInfo() -> ContextControllerReferenceViewInfo? {
-        return ContextControllerReferenceViewInfo(referenceView: self.sourceView, contentAreaInScreenSpace: UIScreen.main.bounds, actionsPosition: self.position)
+        let screenBounds = self.sourceView.window?.windowScene?.screen.bounds ?? self.sourceView.bounds
+        return ContextControllerReferenceViewInfo(referenceView: self.sourceView, contentAreaInScreenSpace: screenBounds, actionsPosition: self.position)
     }
 }

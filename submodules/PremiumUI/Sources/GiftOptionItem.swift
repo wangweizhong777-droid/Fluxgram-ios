@@ -191,22 +191,22 @@ class GiftOptionItemNode: ItemListRevealOptionsItemNode {
         self.titleNode = TextNode()
         self.titleNode.isUserInteractionEnabled = false
         self.titleNode.contentMode = .left
-        self.titleNode.contentsScale = UIScreen.main.scale
+        self.titleNode.contentsScale = UIScreenScale
         
         self.statusNode = TextNode()
         self.statusNode.isUserInteractionEnabled = false
         self.statusNode.contentMode = .left
-        self.statusNode.contentsScale = UIScreen.main.scale
+        self.statusNode.contentsScale = UIScreenScale
         
         self.labelNode = TextNode()
         self.labelNode.isUserInteractionEnabled = false
         self.labelNode.contentMode = .left
-        self.labelNode.contentsScale = UIScreen.main.scale
+        self.labelNode.contentsScale = UIScreenScale
         
         self.badgeTextNode = TextNode()
         self.badgeTextNode.isUserInteractionEnabled = false
         self.badgeTextNode.contentMode = .left
-        self.badgeTextNode.contentsScale = UIScreen.main.scale
+        self.badgeTextNode.contentsScale = UIScreenScale
         
         self.highlightedBackgroundNode = ASDisplayNode()
         self.highlightedBackgroundNode.isLayerBacked = true

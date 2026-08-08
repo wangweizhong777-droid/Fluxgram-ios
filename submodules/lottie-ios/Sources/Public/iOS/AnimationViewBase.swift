@@ -38,7 +38,7 @@ public class AnimationViewBase: UIView {
   }
 
   var screenScale: CGFloat {
-    UIScreen.main.scale
+    window?.windowScene?.screen.scale ?? traitCollection.displayScale
   }
 
   func layoutAnimation() {

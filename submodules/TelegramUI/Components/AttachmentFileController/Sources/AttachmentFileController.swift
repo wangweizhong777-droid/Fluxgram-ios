@@ -1130,10 +1130,12 @@ private final class MessageContextExtractedContentSource: ContextExtractedConten
     }
 
     func takeView() -> ContextControllerTakeViewInfo? {
-        return ContextControllerTakeViewInfo(containingItem: .node(self.sourceNode), contentAreaInScreenSpace: UIScreen.main.bounds)
+        let screenBounds = self.sourceNode.view.window?.windowScene?.screen.bounds ?? self.sourceNode.view.bounds
+        return ContextControllerTakeViewInfo(containingItem: .node(self.sourceNode), contentAreaInScreenSpace: screenBounds)
     }
 
     func putBack() -> ContextControllerPutBackViewInfo? {
-        return ContextControllerPutBackViewInfo(contentAreaInScreenSpace: UIScreen.main.bounds)
+        let screenBounds = self.sourceNode.view.window?.windowScene?.screen.bounds ?? self.sourceNode.view.bounds
+        return ContextControllerPutBackViewInfo(contentAreaInScreenSpace: screenBounds)
     }
 }

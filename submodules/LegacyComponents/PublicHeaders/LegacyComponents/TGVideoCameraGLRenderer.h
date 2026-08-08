@@ -1,3 +1,6 @@
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+
 #import <CoreMedia/CoreMedia.h>
 #import <CoreVideo/CoreVideo.h>
 #import <AVFoundation/AVFoundation.h>
@@ -19,3 +22,5 @@
 - (void)setPreviousPixelBuffer:(TGVideoCameraRendererBuffer *)previousPixelBuffer;
 
 @end
+
+#pragma clang diagnostic pop

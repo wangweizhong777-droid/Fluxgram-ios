@@ -69,8 +69,9 @@ public func fetchCompressedLottieFirstFrameAJpeg(data: Data, size: CGSize, fitzM
                         
                         let colorData = NSMutableData()
                         let alphaData = NSMutableData()
+                        let jpegType = "public.jpeg" as CFString
                         
-                        if let colorDestination = CGImageDestinationCreateWithData(colorData as CFMutableData, kUTTypeJPEG, 1, nil), let alphaDestination = CGImageDestinationCreateWithData(alphaData as CFMutableData, kUTTypeJPEG, 1, nil) {
+                        if let colorDestination = CGImageDestinationCreateWithData(colorData as CFMutableData, jpegType, 1, nil), let alphaDestination = CGImageDestinationCreateWithData(alphaData as CFMutableData, jpegType, 1, nil) {
                             CGImageDestinationSetProperties(colorDestination, NSDictionary() as CFDictionary)
                             CGImageDestinationSetProperties(alphaDestination, NSDictionary() as CFDictionary)
                             

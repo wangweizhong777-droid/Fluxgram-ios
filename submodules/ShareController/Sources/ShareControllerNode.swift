@@ -1971,7 +1971,8 @@ private final class ShareContextReferenceContentSource: ContextReferenceContentS
     }
 
     func transitionInfo() -> ContextControllerReferenceViewInfo? {
-        return ContextControllerReferenceViewInfo(referenceView: self.sourceNode.view, contentAreaInScreenSpace: UIScreen.main.bounds, customPosition: self.customPosition)
+        let screenBounds = self.sourceNode.view.window?.windowScene?.screen.bounds ?? self.sourceNode.view.bounds
+        return ContextControllerReferenceViewInfo(referenceView: self.sourceNode.view, contentAreaInScreenSpace: screenBounds, customPosition: self.customPosition)
     }
 }
 

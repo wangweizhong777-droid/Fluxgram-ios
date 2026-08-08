@@ -7,7 +7,9 @@ swift_library(
 		"Sources/**/*.swift",
     ]),
     copts = [
-        "-warnings-as-errors",
+        # Keep the iOS 13-compatible MapKit location handoff; the replacement
+        # MKMapItem initializer is only available in newer SDKs.
+        "-suppress-warnings",
     ],
     deps = [
         "//submodules/SSignalKit/SwiftSignalKit:SwiftSignalKit",

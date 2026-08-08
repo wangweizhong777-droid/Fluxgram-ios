@@ -1033,9 +1033,10 @@ private final class AdsInfoContextReferenceContentSource: ContextReferenceConten
     }
 
     func transitionInfo() -> ContextControllerReferenceViewInfo? {
+        let screenBounds = self.sourceView.window?.windowScene?.screen.bounds ?? self.sourceView.bounds
         return ContextControllerReferenceViewInfo(
             referenceView: self.sourceView,
-            contentAreaInScreenSpace: UIScreen.main.bounds.inset(by: self.insets),
+            contentAreaInScreenSpace: screenBounds.inset(by: self.insets),
             insets: self.contentInsets
         )
     }

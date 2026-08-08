@@ -88,6 +88,8 @@ public final class ChatPanelInterfaceInteraction {
     public let presentLinkOptions: (UIView) -> Void
     public let presentSuggestPostOptions: () -> Void
     public let shareSelectedMessages: () -> Void
+    public let downloadSelectedMessages: (() -> Void)?
+    public let favoriteSelectedMessages: (() -> Void)?
     public let updateTextInputStateAndMode: (@escaping (ChatTextInputState, ChatInputMode) -> (ChatTextInputState, ChatInputMode)) -> Void
     public let updateInputModeAndDismissedButtonKeyboardMessageId: ((ChatPresentationInterfaceState) -> (ChatInputMode, EngineMessage.Id?)) -> Void
     public let openStickers: () -> Void
@@ -221,6 +223,8 @@ public final class ChatPanelInterfaceInteraction {
         presentLinkOptions: @escaping (UIView) -> Void,
         presentSuggestPostOptions: @escaping () -> Void,
         shareSelectedMessages: @escaping () -> Void,
+        downloadSelectedMessages: (() -> Void)? = nil,
+        favoriteSelectedMessages: (() -> Void)? = nil,
         updateTextInputStateAndMode: @escaping ((ChatTextInputState, ChatInputMode) -> (ChatTextInputState, ChatInputMode)) -> Void,
         updateInputModeAndDismissedButtonKeyboardMessageId: @escaping ((ChatPresentationInterfaceState) -> (ChatInputMode, EngineMessage.Id?)) -> Void,
         openStickers: @escaping () -> Void,
@@ -353,6 +357,8 @@ public final class ChatPanelInterfaceInteraction {
         self.presentLinkOptions = presentLinkOptions
         self.presentSuggestPostOptions = presentSuggestPostOptions
         self.shareSelectedMessages = shareSelectedMessages
+        self.downloadSelectedMessages = downloadSelectedMessages
+        self.favoriteSelectedMessages = favoriteSelectedMessages
         self.updateTextInputStateAndMode = updateTextInputStateAndMode
         self.updateInputModeAndDismissedButtonKeyboardMessageId = updateInputModeAndDismissedButtonKeyboardMessageId
         self.openStickers = openStickers

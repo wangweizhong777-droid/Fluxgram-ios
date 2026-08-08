@@ -3097,7 +3097,7 @@ public class ComposePollScreen: ViewControllerComponentContainer, AttachmentCont
             self.navigationItem.setLeftBarButton(UIBarButtonItem(title: presentationData.strings.Common_Cancel, style: .plain, target: self, action: #selector(self.cancelPressed)), animated: false)
         }
         
-        let sendButtonItem = UIBarButtonItem(title: presentationData.strings.CreatePoll_Create, style: .done, target: self, action: #selector(self.sendPressed))
+        let sendButtonItem = UIBarButtonItem(title: presentationData.strings.CreatePoll_Create, style: UIBarButtonItem.Style(rawValue: 2) ?? .plain, target: self, action: #selector(self.sendPressed))
         self.sendButtonItem = sendButtonItem
         if self._hasGlassStyle {
         
@@ -3247,7 +3247,8 @@ private final class ComposePollContextReferenceContentSource: ContextReferenceCo
     }
     
     func transitionInfo() -> ContextControllerReferenceViewInfo? {
-        return ContextControllerReferenceViewInfo(referenceView: self.sourceView, contentAreaInScreenSpace: UIScreen.main.bounds, insets: UIEdgeInsets(top: -4.0, left: 0.0, bottom: -4.0, right: 0.0))
+        let screenBounds = self.sourceView.window?.windowScene?.screen.bounds ?? self.sourceView.bounds
+        return ContextControllerReferenceViewInfo(referenceView: self.sourceView, contentAreaInScreenSpace: screenBounds, insets: UIEdgeInsets(top: -4.0, left: 0.0, bottom: -4.0, right: 0.0))
     }
 }
 

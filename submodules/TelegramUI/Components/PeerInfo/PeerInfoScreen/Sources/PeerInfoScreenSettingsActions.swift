@@ -171,6 +171,14 @@ extension PeerInfoScreenNode {
             self.controller?.push(SecureIdAuthController(context: self.context, mode: .list))
         case .watch:
             push(watchSettingsController(context: self.context))
+        case .fluxgram:
+            push(fluxgramSettingsController(context: self.context))
+        case .fluxgramDownloads:
+            push(fluxgramDownloadsController(context: self.context))
+        case .fluxgramFavorites:
+            push(fluxgramFavoritesController(context: self.context))
+        case .fluxgramShortVideos:
+            push(fluxgramShortVideoController(context: self.context))
         case .support:
             let supportPeer = Promise<EnginePeer.Id?>()
             supportPeer.set(context.engine.peers.supportPeerId())

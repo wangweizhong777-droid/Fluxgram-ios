@@ -7,7 +7,9 @@ swift_library(
         "Sources/**/*.swift",
     ]),
     copts = [
-        "-warnings-as-errors",
+        # Keep the iOS 26-compatible passkey branch while the SDK evolves
+        # ASCredentialUpdater into ASCredentialDataManager.
+        "-suppress-warnings",
     ],
     deps = [
         "//submodules/Display",

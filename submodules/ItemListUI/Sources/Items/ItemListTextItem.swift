@@ -127,7 +127,7 @@ public class ItemListTextItemNode: ListViewItemNode, ItemListItemNode {
         self.textNode = TextNodeWithEntities()
         self.textNode.textNode.isUserInteractionEnabled = false
         self.textNode.textNode.contentMode = .left
-        self.textNode.textNode.contentsScale = UIScreen.main.scale
+        self.textNode.textNode.contentsScale = UIScreenScale
         
         self.activateArea = AccessibilityAreaNode()
         self.activateArea.accessibilityTraits = .staticText

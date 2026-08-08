@@ -2,7 +2,6 @@ import Foundation
 import UIKit
 import Display
 import TelegramCore
-import MobileCoreServices
 import TextFormat
 
 private func rtfStringWithAppliedEntities(_ text: String, entities: [MessageTextEntity]) -> String {
@@ -306,10 +305,10 @@ public func chatInputStateStringFromAppSpecificString(data: Data) -> NSAttribute
 
 public func storeMessageTextInPasteboard(_ text: String, entities: [MessageTextEntity]?) {
     var items: [String: Any] = [:]
-    items[kUTTypeUTF8PlainText as String] = text
+    items["public.utf8-plain-text"] = text
     
     if let entities = entities {
-        items[kUTTypeRTF as String] = rtfStringWithAppliedEntities(text, entities: entities)
+        items["public.rtf"] = rtfStringWithAppliedEntities(text, entities: entities)
         items["private.telegramtext"] = appSpecificStringWithAppliedEntities(text, entities: entities)
     }
     UIPasteboard.general.items = [items]

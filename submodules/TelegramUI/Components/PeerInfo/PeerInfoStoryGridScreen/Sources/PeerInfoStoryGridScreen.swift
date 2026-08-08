@@ -639,7 +639,7 @@ public class PeerInfoStoryGridScreen: ViewControllerComponentContainer {
         }
         moreBarButton.addTarget(self, action: #selector(self.morePressed), forControlEvents: .touchUpInside)
         
-        let doneBarButtonItem = UIBarButtonItem(title: presentationData.strings.Common_Done, style: .done, target: self, action: #selector(self.donePressed))
+        let doneBarButtonItem = UIBarButtonItem(title: presentationData.strings.Common_Done, style: UIBarButtonItem.Style(rawValue: 2) ?? .plain, target: self, action: #selector(self.donePressed))
         self.doneBarButtonItem = doneBarButtonItem
         
         self.titleView = ChatTitleView(
@@ -761,6 +761,7 @@ private final class PeerInfoContextReferenceContentSource: ContextReferenceConte
     }
     
     func transitionInfo() -> ContextControllerReferenceViewInfo? {
-        return ContextControllerReferenceViewInfo(referenceView: self.sourceNode.view, contentAreaInScreenSpace: UIScreen.main.bounds)
+        let screenBounds = self.sourceNode.view.window?.windowScene?.screen.bounds ?? self.sourceNode.view.bounds
+        return ContextControllerReferenceViewInfo(referenceView: self.sourceNode.view, contentAreaInScreenSpace: screenBounds)
     }
 }

@@ -752,7 +752,8 @@ public struct ComponentTransition {
         case let .curve(duration, curve):
             let framesPerSecond: CGFloat
             if #available(iOS 15.0, *) {
-                framesPerSecond = duration * CGFloat(UIScreen.main.maximumFramesPerSecond)
+                let screen = (layer.delegate as? UIView)?.window?.windowScene?.screen
+                framesPerSecond = duration * CGFloat(screen?.maximumFramesPerSecond ?? 60)
             } else {
                 framesPerSecond = 60.0
             }

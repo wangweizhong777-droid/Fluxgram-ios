@@ -34,8 +34,9 @@ private final class MediaControlMenuReferenceSource: ContextReferenceContentSour
     private let sourceView: UIView
     init(sourceView: UIView) { self.sourceView = sourceView }
     func transitionInfo() -> ContextControllerReferenceViewInfo? {
+        let screenBounds = self.sourceView.window?.windowScene?.screen.bounds ?? self.sourceView.bounds
         return ContextControllerReferenceViewInfo(referenceView: self.sourceView,
-            contentAreaInScreenSpace: UIScreen.main.bounds,
+            contentAreaInScreenSpace: screenBounds,
             insets: UIEdgeInsets(top: -4.0, left: 0.0, bottom: -4.0, right: 0.0), actionsPosition: .bottom)
     }
 }

@@ -49,6 +49,21 @@ static const void *forceFullRefreshRateKey = &forceFullRefreshRateKey;
 
 static bool notyfyingShiftState = false;
 
+static UIScreen *activeApplicationScreen(void) {
+    if (@available(iOS 13.0, *)) {
+        for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
+            if (![scene isKindOfClass:[UIWindowScene class]]) {
+                continue;
+            }
+            if (scene.activationState == UISceneActivationStateUnattached) {
+                continue;
+            }
+            return ((UIWindowScene *)scene).screen;
+        }
+    }
+    return nil;
+}
+
 @interface UIKeyboardImpl_65087dc8: UIView
 
 @end
@@ -103,7 +118,7 @@ static bool notyfyingShiftState = false;
 
 - (void)_65087dc8_setPreferredFrameRateRange:(CAFrameRateRange)range API_AVAILABLE(ios(15.0)) {
     if ([self associatedObjectForKey:forceFullRefreshRateKey] != nil) {
-        float maxFps = [UIScreen mainScreen].maximumFramesPerSecond;
+        float maxFps = activeApplicationScreen().maximumFramesPerSecond;
         if (maxFps > 61.0f) {
             range = CAFrameRateRangeMake(maxFps, maxFps, maxFps);
         }
@@ -307,7 +322,7 @@ static NSMutableArray<CALayerSpringParametersOverride *> *currentSpringParameter
             [displayLink setAssociatedObject:@true forKey:forceFullRefreshRateKey];
             
             if (@available(iOS 15.0, *)) {
-                float maxFps = [UIScreen mainScreen].maximumFramesPerSecond;
+                float maxFps = activeApplicationScreen().maximumFramesPerSecond;
                 if (maxFps > 61.0f) {
                     [displayLink setPreferredFrameRateRange:CAFrameRateRangeMake(maxFps, maxFps, maxFps)];
                 }
@@ -733,7 +748,7 @@ static NSMutableDictionary<NSString *, TrustedWebRecord *> *trustedWebRecords() 
     if (!windowClass) {
         return nil;
     }
-    UIWindow *result = [(id<UIRemoteKeyboardWindowProtocol>)windowClass remoteKeyboardWindowForScreen:[UIScreen mainScreen] create:false];
+    UIWindow *result = [(id<UIRemoteKeyboardWindowProtocol>)windowClass remoteKeyboardWindowForScreen:activeApplicationScreen() create:false];
     
     if (result) {
         //dumpViews(result, @"");

@@ -4,10 +4,12 @@ swift_library(
     name = "TextInputMenu",
     module_name = "TextInputMenu",
     srcs = glob([
-		"Sources/**/*.swift",
+        "Sources/**/*.swift",
     ]),
     copts = [
-        "-warnings-as-errors",
+        # This module intentionally keeps Telegram's legacy editing menu
+        # integration for older iOS versions.
+        "-suppress-warnings",
     ],
     deps = [
         "//submodules/TelegramPresentationData:TelegramPresentationData",

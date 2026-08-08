@@ -182,6 +182,8 @@ public final class ChatMessageSelectionInputPanelNode: ChatInputPanelNode {
     private let reportButton: GlassButtonView
     private let forwardButton: GlassButtonView
     private let shareButton: GlassButtonView
+    private let downloadButton: GlassButtonView
+    private let favoriteButton: GlassButtonView
     private let tagButton: GlassButtonView
     private let tagEditButton: GlassButtonView
     
@@ -195,6 +197,8 @@ public final class ChatMessageSelectionInputPanelNode: ChatInputPanelNode {
     private let peerMedia: Bool
     
     private let canDeleteMessagesDisposable = MetaDisposable()
+    private let downloadAvailabilityDisposable = MetaDisposable()
+    private var hasDownloadableVideo = false
     
     public var selectedMessages = Set<EngineMessage.Id>() {
         didSet {
@@ -229,6 +233,18 @@ public final class ChatMessageSelectionInputPanelNode: ChatInputPanelNode {
         self.shareButton.icon = "Chat/Input/Accessory Panels/MessageSelectionAction"
         self.shareButton.isAccessibilityElement = true
         self.shareButton.accessibilityLabel = strings.VoiceOver_MessageContextShare
+
+        self.downloadButton = GlassButtonView()
+        self.downloadButton.icon = "Chat/Context Menu/Download"
+        self.downloadButton.isHidden = true
+        self.downloadButton.isAccessibilityElement = true
+        self.downloadButton.accessibilityLabel = "下载到 NAS"
+
+        self.favoriteButton = GlassButtonView()
+        self.favoriteButton.icon = "Chat/Context Menu/Save"
+        self.favoriteButton.isHidden = true
+        self.favoriteButton.isAccessibilityElement = true
+        self.favoriteButton.accessibilityLabel = "加入收藏箱"
         
         self.tagButton = GlassButtonView()
         self.tagButton.icon = "Chat/Input/Accessory Panels/TagIcon"
@@ -248,6 +264,8 @@ public final class ChatMessageSelectionInputPanelNode: ChatInputPanelNode {
         self.view.addSubview(self.reportButton)
         self.view.addSubview(self.forwardButton)
         self.view.addSubview(self.shareButton)
+        self.view.addSubview(self.downloadButton)
+        self.view.addSubview(self.favoriteButton)
         self.view.addSubview(self.tagButton)
         self.view.addSubview(self.tagEditButton)
         
@@ -260,16 +278,25 @@ public final class ChatMessageSelectionInputPanelNode: ChatInputPanelNode {
         self.reportButton.button.addTarget(self, action: #selector(self.reportButtonPressed), for: .touchUpInside)
         self.forwardButton.button.addTarget(self, action: #selector(self.forwardButtonPressed), for: .touchUpInside)
         self.shareButton.button.addTarget(self, action: #selector(self.shareButtonPressed), for: .touchUpInside)
+        self.downloadButton.button.addTarget(self, action: #selector(self.downloadButtonPressed), for: .touchUpInside)
+        self.favoriteButton.button.addTarget(self, action: #selector(self.favoriteButtonPressed), for: .touchUpInside)
         self.tagButton.button.addTarget(self, action: #selector(self.tagButtonPressed), for: .touchUpInside)
         self.tagEditButton.button.addTarget(self, action: #selector(self.tagButtonPressed), for: .touchUpInside)
     }
     
     deinit {
         self.canDeleteMessagesDisposable.dispose()
+        self.downloadAvailabilityDisposable.dispose()
     }
     
     private func updateActions() {
         self.forwardButton.isEnabled = self.selectedMessages.count != 0
+        self.hasDownloadableVideo = false
+        self.downloadButton.isEnabled = false
+        self.downloadButton.isHidden = true
+        self.favoriteButton.isEnabled = false
+        self.favoriteButton.isHidden = true
+        self.downloadAvailabilityDisposable.set(nil)
         
         if self.selectedMessages.isEmpty {
             self.actions = nil
@@ -278,6 +305,23 @@ public final class ChatMessageSelectionInputPanelNode: ChatInputPanelNode {
             }
             self.canDeleteMessagesDisposable.set(nil)
         } else if let context = self.context {
+            self.downloadAvailabilityDisposable.set((context.account.postbox.messagesAtIds(Array(self.selectedMessages))
+            |> map { messages -> Bool in
+                return messages.contains(where: { message in
+                    return message.media.contains(where: { media in
+                        return media is TelegramMediaImage || (media as? TelegramMediaFile)?.isVideo == true
+                    })
+                })
+            }
+            |> deliverOnMainQueue).start(next: { [weak self] hasDownloadableVideo in
+                guard let self else {
+                    return
+                }
+                self.hasDownloadableVideo = hasDownloadableVideo
+                if let (width, leftInset, rightInset, bottomInset, additionalSideInsets, maxHeight, maxOverlayHeight, metrics, isSecondary, isMediaInputExpanded, deviceMetrics) = self.validLayout, let interfaceState = self.presentationInterfaceState {
+                    let _ = self.updateLayout(width: width, leftInset: leftInset, rightInset: rightInset, bottomInset: bottomInset, additionalSideInsets: additionalSideInsets, maxHeight: maxHeight, maxOverlayHeight: maxOverlayHeight, isSecondary: isSecondary, transition: .immediate, interfaceState: interfaceState, metrics: metrics, deviceMetrics: deviceMetrics, isMediaInputExpanded: isMediaInputExpanded)
+                }
+            }))
             self.canDeleteMessagesDisposable.set((context.sharedContext.chatAvailableMessageActions(engine: context.engine, accountPeerId: context.account.peerId, messageIds: self.selectedMessages, keepUpdated: true)
             |> deliverOnMainQueue).startStrict(next: { [weak self] actions in
                 if let strongSelf = self {
@@ -324,6 +368,14 @@ public final class ChatMessageSelectionInputPanelNode: ChatInputPanelNode {
         } else if !self.shareButton.isImplicitlyDisabled {
             self.interfaceInteraction?.shareSelectedMessages()
         }
+    }
+
+    @objc private func downloadButtonPressed() {
+        self.interfaceInteraction?.downloadSelectedMessages?()
+    }
+
+    @objc private func favoriteButtonPressed() {
+        self.interfaceInteraction?.favoriteSelectedMessages?()
     }
     
     @objc private func tagButtonPressed() {
@@ -473,6 +525,11 @@ public final class ChatMessageSelectionInputPanelNode: ChatInputPanelNode {
             }
             self.shareButton.isImplicitlyDisabled = actions.options.intersection(.forward).isEmpty || actions.options.intersection(.externalShare).isEmpty
             self.reportButton.isEnabled = !actions.options.intersection([.report]).isEmpty
+            let isSecretChat = interfaceState.renderedPeer?.peer is TelegramSecretChat
+            self.downloadButton.isEnabled = self.hasDownloadableVideo && !isSecretChat
+            self.downloadButton.isHidden = !self.downloadButton.isEnabled || self.interfaceInteraction?.downloadSelectedMessages == nil
+            self.favoriteButton.isEnabled = !self.selectedMessages.isEmpty
+            self.favoriteButton.isHidden = !self.favoriteButton.isEnabled || self.interfaceInteraction?.favoriteSelectedMessages == nil
             
             if self.peerMedia {
                 self.deleteButton.isHidden = !self.deleteButton.isEnabled
@@ -500,6 +557,10 @@ public final class ChatMessageSelectionInputPanelNode: ChatInputPanelNode {
             self.reportButton.isHidden = true
             self.forwardButton.isImplicitlyDisabled = true
             self.shareButton.isImplicitlyDisabled = true
+            self.downloadButton.isEnabled = false
+            self.downloadButton.isHidden = true
+            self.favoriteButton.isEnabled = false
+            self.favoriteButton.isHidden = true
             self.tagButton.isHidden = true
             self.tagEditButton.isHidden = true
             self.tagButton.isHidden = true
@@ -526,18 +587,22 @@ public final class ChatMessageSelectionInputPanelNode: ChatInputPanelNode {
             tagButton = self.tagEditButton
         }
         
-        let buttons: [GlassButtonView]
+        var buttons: [GlassButtonView]
         if self.reportButton.isHidden {
             if let tagButton {
                 buttons = [
                     self.deleteButton,
                     tagButton,
+                    self.favoriteButton,
+                    self.downloadButton,
                     self.shareButton,
                     self.forwardButton
                 ]
             } else {
                 buttons = [
                     self.deleteButton,
+                    self.favoriteButton,
+                    self.downloadButton,
                     self.shareButton,
                     self.forwardButton
                 ]
@@ -548,6 +613,8 @@ public final class ChatMessageSelectionInputPanelNode: ChatInputPanelNode {
                     self.deleteButton,
                     self.reportButton,
                     tagButton,
+                    self.favoriteButton,
+                    self.downloadButton,
                     self.shareButton,
                     self.forwardButton
                 ]
@@ -555,6 +622,8 @@ public final class ChatMessageSelectionInputPanelNode: ChatInputPanelNode {
                 buttons = [
                     self.deleteButton,
                     self.reportButton,
+                    self.favoriteButton,
+                    self.downloadButton,
                     self.shareButton,
                     self.forwardButton
                 ]
@@ -565,6 +634,8 @@ public final class ChatMessageSelectionInputPanelNode: ChatInputPanelNode {
                     self.deleteButton,
                     self.reportButton,
                     tagButton,
+                    self.favoriteButton,
+                    self.downloadButton,
                     self.shareButton,
                     self.forwardButton
                 ]
@@ -572,12 +643,15 @@ public final class ChatMessageSelectionInputPanelNode: ChatInputPanelNode {
                 buttons = [
                     self.deleteButton,
                     self.reportButton,
+                    self.favoriteButton,
+                    self.downloadButton,
                     self.shareButton,
                     self.forwardButton
                 ]
             }
         }
         
+        buttons = buttons.filter { !$0.isHidden }
         let buttonSize = CGSize(width: 40.0, height: 40.0)
         
         let availableWidth = width - leftInset - rightInset

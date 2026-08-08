@@ -1406,7 +1406,7 @@ final class BotCheckoutControllerNode: ItemListControllerNode, PKPaymentAuthoriz
                             
                             request.merchantIdentifier = merchantId
                             request.supportedNetworks = [.visa, .amex, .masterCard]
-                            request.merchantCapabilities = [.capability3DS]
+                            request.merchantCapabilities = [.threeDSecure]
                             request.countryCode = countryCode
                             request.currencyCode = paymentForm.invoice.currency.uppercased()
 

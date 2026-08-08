@@ -141,12 +141,12 @@ public class ItemListSectionHeaderItemNode: ListViewItemNode, ItemListItemNode {
         self.titleNode = TextNode()
         self.titleNode.isUserInteractionEnabled = false
         self.titleNode.contentMode = .left
-        self.titleNode.contentsScale = UIScreen.main.scale
+        self.titleNode.contentsScale = UIScreenScale
         
         self.accessoryTextNode = TextNode()
         self.accessoryTextNode.isUserInteractionEnabled = false
         self.accessoryTextNode.contentMode = .left
-        self.accessoryTextNode.contentsScale = UIScreen.main.scale
+        self.accessoryTextNode.contentsScale = UIScreenScale
         
         self.activateArea = AccessibilityAreaNode()
         self.activateArea.accessibilityTraits = [.staticText, .header]

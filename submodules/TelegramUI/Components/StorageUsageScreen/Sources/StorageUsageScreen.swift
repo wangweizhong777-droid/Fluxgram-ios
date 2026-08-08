@@ -3350,7 +3350,8 @@ private final class StorageUsageContextReferenceContentSource: ContextReferenceC
     }
     
     func transitionInfo() -> ContextControllerReferenceViewInfo? {
-        return ContextControllerReferenceViewInfo(referenceView: self.sourceView, contentAreaInScreenSpace: UIScreen.main.bounds, insets: UIEdgeInsets(top: -4.0, left: 0.0, bottom: -4.0, right: 0.0))
+        let screenBounds = self.sourceView.window?.windowScene?.screen.bounds ?? self.sourceView.bounds
+        return ContextControllerReferenceViewInfo(referenceView: self.sourceView, contentAreaInScreenSpace: screenBounds, insets: UIEdgeInsets(top: -4.0, left: 0.0, bottom: -4.0, right: 0.0))
     }
 }
 
@@ -3730,10 +3731,12 @@ private final class StorageUsageListContextExtractedContentSource: ContextExtrac
     }
     
     func takeView() -> ContextControllerTakeViewInfo? {
-        return ContextControllerTakeViewInfo(containingItem: .view(self.contentView), contentAreaInScreenSpace: UIScreen.main.bounds)
+        let screenBounds = self.contentView.window?.windowScene?.screen.bounds ?? self.contentView.bounds
+        return ContextControllerTakeViewInfo(containingItem: .view(self.contentView), contentAreaInScreenSpace: screenBounds)
     }
     
     func putBack() -> ContextControllerPutBackViewInfo? {
-        return ContextControllerPutBackViewInfo(contentAreaInScreenSpace: UIScreen.main.bounds)
+        let screenBounds = self.contentView.window?.windowScene?.screen.bounds ?? self.contentView.bounds
+        return ContextControllerPutBackViewInfo(contentAreaInScreenSpace: screenBounds)
     }
 }

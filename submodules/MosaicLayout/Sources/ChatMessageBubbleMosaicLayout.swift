@@ -10,10 +10,10 @@ import UIKit
 ///
 /// The scale is cached at module load, mirroring `Display`'s module-level `UIScreenScale` global —
 /// this function runs during off-main-thread async layout for all 5 shared callers (chat bubbles,
-/// InstantPage V1/V2 collage, media picker, audio preview), and reading `UIScreen.main` off-main on
+/// InstantPage V1/V2 collage, media picker, audio preview), and reading a screen object off-main on
 /// every call is both a Main Thread Checker violation and unnecessary per-call cost.
 #if canImport(UIKit)
-private let mosaicScreenScale: CGFloat = UIScreen.main.scale
+private let mosaicScreenScale: CGFloat = max(UITraitCollection.current.displayScale, 1.0)
 #else
 private let mosaicScreenScale: CGFloat = 2.0
 #endif

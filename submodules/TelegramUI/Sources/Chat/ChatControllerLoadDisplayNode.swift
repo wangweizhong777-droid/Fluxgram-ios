@@ -2130,6 +2130,76 @@ extension ChatControllerImpl {
                     }
                 })
             }
+        }, downloadSelectedMessages: { [weak self] in
+            guard let strongSelf = self, let selectedIds = strongSelf.presentationInterfaceState.interfaceState.selectionState?.selectedIds, !selectedIds.isEmpty else {
+                return
+            }
+            strongSelf.commitPurposefulAction()
+            let _ = (strongSelf.context.engine.data.get(EngineDataMap(
+                selectedIds.map(TelegramEngine.EngineData.Item.Messages.Message.init)
+            ))
+            |> map { messages -> [EngineMessage] in
+                return messages.values.compactMap { $0 }.sorted(by: { lhs, rhs in
+                    return lhs.index < rhs.index
+                })
+            }
+            |> deliverOnMainQueue).startStandalone(next: { [weak self] messages in
+                guard let strongSelf = self, !messages.isEmpty else {
+                    return
+                }
+                fluxgramRefreshedDownloadRequests(context: strongSelf.context, messages: messages) { [weak self] requests in
+                    guard let strongSelf = self else {
+                        return
+                    }
+                    guard let firstRequest = requests.first else {
+                        return
+                    }
+                    strongSelf.updateChatPresentationInterfaceState(animated: true, interactive: true, { $0.updatedInterfaceState({ $0.withoutSelectionState() }) })
+                    fluxgramDownloadFolderActionSheet(
+                        context: strongSelf.context,
+                        dialogId: firstRequest.dialogId,
+                        messageId: firstRequest.messageId,
+                        peerAccessHash: nil,
+                        directDocument: nil,
+                        downloadRequests: requests,
+                        present: { [weak strongSelf] controller in
+                            strongSelf?.present(controller, in: .window(.root))
+                        }
+                    )
+                }
+            })
+        }, favoriteSelectedMessages: { [weak self] in
+            guard let strongSelf = self, let selectedIds = strongSelf.presentationInterfaceState.interfaceState.selectionState?.selectedIds, !selectedIds.isEmpty else {
+                return
+            }
+            let _ = (strongSelf.context.engine.data.get(EngineDataMap(
+                selectedIds.map(TelegramEngine.EngineData.Item.Messages.Message.init)
+            ))
+            |> map { messages -> [EngineMessage] in
+                return messages.values.compactMap { $0 }.sorted(by: { $0.index < $1.index })
+            }
+            |> deliverOnMainQueue).startStandalone(next: { [weak self] messages in
+                guard let strongSelf = self, !messages.isEmpty else {
+                    return
+                }
+                strongSelf.present(fluxgramFavoriteTagAlert(context: strongSelf.context, completion: { [weak strongSelf] tags in
+                    guard let strongSelf else {
+                        return
+                    }
+                    let addedCount = FluxgramFavoriteStore.add(messages: messages, tags: tags)
+                    strongSelf.updateChatPresentationInterfaceState(animated: true, interactive: true, { $0.updatedInterfaceState({ $0.withoutSelectionState() }) })
+                    let presentationData = strongSelf.presentationData
+                    let text: String
+                    if addedCount == messages.count {
+                        text = "已将 \(addedCount) 条消息加入收藏箱。"
+                    } else if addedCount > 0 {
+                        text = "已加入 \(addedCount) 条消息，其余收藏已更新标签。"
+                    } else {
+                        text = "已更新已收藏消息的标签。"
+                    }
+                    strongSelf.present(standardTextAlertController(theme: AlertControllerTheme(presentationData: presentationData), title: nil, text: text, actions: [TextAlertAction(type: .defaultAction, title: presentationData.strings.Common_OK, action: {})]), in: .window(.root))
+                }), in: .window(.root))
+            })
         }, updateTextInputStateAndMode: { [weak self] f in
             if let strongSelf = self {
                 strongSelf.updateChatPresentationInterfaceState(animated: true, interactive: true, { state in

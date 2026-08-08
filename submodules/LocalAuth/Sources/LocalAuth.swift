@@ -104,14 +104,18 @@ public struct LocalAuth {
     public static let evaluatedPolicyDomainState: Data? = {
         let context = LAContext()
         if context.canEvaluatePolicy(LAPolicy(rawValue: Int(kLAPolicyDeviceOwnerAuthenticationWithBiometrics))!, error: nil) {
-            if #available(iOSApplicationExtension 9.0, iOS 9.0, *) {
-                return context.evaluatedPolicyDomainState
-            } else {
-                return Data()
-            }
+            return policyDomainState(for: context)
         }
         return nil
     }()
+
+    private static func policyDomainState(for context: LAContext) -> Data? {
+        if #available(iOSApplicationExtension 18.0, iOS 18.0, *) {
+            return context.domainState.stateHash
+        } else {
+            return context.evaluatedPolicyDomainState
+        }
+    }
     
     public static func auth(reason: String) -> Signal<(Bool, Data?), NoError> {
         return Signal { subscriber in
@@ -119,13 +123,7 @@ public struct LocalAuth {
             
             if LAContext().canEvaluatePolicy(LAPolicy(rawValue: Int(kLAPolicyDeviceOwnerAuthenticationWithBiometrics))!, error: nil) {
                 context.evaluatePolicy(LAPolicy(rawValue: Int(kLAPolicyDeviceOwnerAuthenticationWithBiometrics))!, localizedReason: reason, reply: { result, _ in
-                    let evaluatedPolicyDomainState: Data?
-                    if #available(iOSApplicationExtension 9.0, iOS 9.0, *) {
-                        evaluatedPolicyDomainState = context.evaluatedPolicyDomainState
-                    } else {
-                        evaluatedPolicyDomainState = Data()
-                    }
-                    subscriber.putNext((result, evaluatedPolicyDomainState))
+                    subscriber.putNext((result, policyDomainState(for: context)))
                     subscriber.putCompletion()
                 })
             } else {

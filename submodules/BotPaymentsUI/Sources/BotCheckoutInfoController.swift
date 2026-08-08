@@ -65,7 +65,8 @@ final class BotCheckoutInfoController: ViewController {
         self._hasGlassStyle = true
         self.statusBar.statusBarStyle = self.presentationData.theme.rootController.statusBarStyle.style
         
-        self.doneItem = UIBarButtonItem(title: "___done", style: .done, target: self, action: #selector(self.donePressed))
+        let doneStyle = UIBarButtonItem.Style(rawValue: 2) ?? .plain
+        self.doneItem = UIBarButtonItem(title: "___done", style: doneStyle, target: self, action: #selector(self.donePressed))
         
         self.title = self.presentationData.strings.CheckoutInfo_Title
         

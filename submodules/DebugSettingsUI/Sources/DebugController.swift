@@ -1210,7 +1210,6 @@ private enum DebugControllerEntry: ItemListNodeEntry {
             return ItemListActionItem(presentationData: presentationData, systemStyle: .glass, title: "Clear Web View Cache", kind: .destructive, alignment: .natural, sectionId: self.section, style: .blocks, action: {
                 WKWebsiteDataStore.default().removeData(ofTypes: [
                     WKWebsiteDataTypeDiskCache,
-                    WKWebsiteDataTypeOfflineWebApplicationCache,
                     WKWebsiteDataTypeMemoryCache,
                     WKWebsiteDataTypeLocalStorage,
                     WKWebsiteDataTypeCookies,

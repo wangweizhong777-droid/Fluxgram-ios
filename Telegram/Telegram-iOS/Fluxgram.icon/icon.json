@@ -1,0 +1,61 @@
+{
+  "fill" : "system-light",
+  "groups" : [
+    {
+      "blend-mode" : "normal",
+      "layers" : [
+        {
+          "blend-mode-specializations" : [
+            {
+              "value" : "normal"
+            }
+          ],
+          "fill-specializations" : [
+            {
+              "value" : {
+                "linear-gradient" : [
+                  "display-p3:0.00000,0.65098,0.55294,1.00000",
+                  "srgb:0.00000,0.34118,0.29412,1.00000"
+                ]
+              }
+            }
+          ],
+          "glass" : true,
+          "image-name" : "Tile.svg",
+          "name" : "Tile"
+        },
+        {
+          "blend-mode-specializations" : [
+            {
+              "value" : "normal"
+            }
+          ],
+          "fill-specializations" : [
+            {
+              "value" : "automatic"
+            }
+          ],
+          "glass" : true,
+          "image-name" : "Flux.svg",
+          "name" : "Flux"
+        }
+      ],
+      "lighting" : "combined",
+      "shadow" : {
+        "kind" : "layer-color",
+        "opacity" : 1
+      },
+      "specular" : true,
+      "translucency" : {
+        "enabled" : false,
+        "value" : 1
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}

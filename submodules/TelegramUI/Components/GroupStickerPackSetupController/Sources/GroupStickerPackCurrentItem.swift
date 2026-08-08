@@ -152,13 +152,13 @@ class GroupStickerPackCurrentItemNode: ItemListRevealOptionsItemNode {
         self.titleNode.isUserInteractionEnabled = false
         self.titleNode.displaysAsynchronously = false
         self.titleNode.contentMode = .left
-        self.titleNode.contentsScale = UIScreen.main.scale
+        self.titleNode.contentsScale = UIScreenScale
         
         self.statusNode = TextNode()
         self.statusNode.isUserInteractionEnabled = false
         self.statusNode.displaysAsynchronously = false
         self.statusNode.contentMode = .left
-        self.statusNode.contentsScale = UIScreen.main.scale
+        self.statusNode.contentsScale = UIScreenScale
         
         self.activityIndicator = ActivityIndicator(type: .custom(.blue, 22.0, 1.0, false))
         

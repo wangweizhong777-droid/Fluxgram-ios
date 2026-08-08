@@ -360,12 +360,12 @@ public class ItemListAvatarAndNameInfoItemNode: ListViewItemNode, ItemListItemNo
         self.nameNode = TextNode()
         self.nameNode.isUserInteractionEnabled = false
         self.nameNode.contentMode = .left
-        self.nameNode.contentsScale = UIScreen.main.scale
+        self.nameNode.contentsScale = UIScreenScale
         
         self.statusNode = TextNode()
         self.statusNode.isUserInteractionEnabled = false
         self.statusNode.contentMode = .left
-        self.statusNode.contentsScale = UIScreen.main.scale
+        self.statusNode.contentsScale = UIScreenScale
         
         self.arrowNode = ASImageNode()
         self.arrowNode.isLayerBacked = true

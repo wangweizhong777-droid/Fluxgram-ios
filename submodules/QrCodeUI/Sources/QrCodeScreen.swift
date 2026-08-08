@@ -22,6 +22,11 @@ import MtProtoKit
 import SegmentControlComponent
 import UrlEscaping
 
+private func activeApplicationScreen() -> UIScreen? {
+    let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+    return scenes.first(where: { $0.activationState == .foregroundActive })?.screen ?? scenes.first?.screen
+}
+
 private func shareQrCode(sharedContext: SharedAccountContext, subject: QrCodeScreen.Subject, asImage: Bool, view: UIView) {
     let shareImpl: (Any) -> Void = { item in
         let activityController = UIActivityViewController(activityItems: [item], applicationActivities: nil)
@@ -75,6 +80,7 @@ private final class SheetContent: CombinedComponent {
     
     final class State: ComponentState {
         private let idleTimerExtensionDisposable = MetaDisposable()
+        private let screen: UIScreen?
         
         private var initialBrightness: CGFloat?
         private var brightnessArguments: (Double, Double, CGFloat, CGFloat)?
@@ -83,6 +89,7 @@ private final class SheetContent: CombinedComponent {
         var selectedProxyExternalLink: Bool
 
         init(sharedContext: SharedAccountContext, subject: QrCodeScreen.Subject) {
+            self.screen = activeApplicationScreen()
             if case let .proxy(_, externalLink) = subject {
                 self.selectedProxyExternalLink = externalLink
             } else {
@@ -98,8 +105,10 @@ private final class SheetContent: CombinedComponent {
             })
             self.animator?.isPaused = true
             
-            self.initialBrightness = UIScreen.main.brightness
-            self.brightnessArguments = (CACurrentMediaTime(), 0.3, UIScreen.main.brightness, 1.0)
+            if let screen = self.screen {
+                self.initialBrightness = screen.brightness
+                self.brightnessArguments = (CACurrentMediaTime(), 0.3, screen.brightness, 1.0)
+            }
             self.updateBrightness()
         }
         
@@ -107,20 +116,20 @@ private final class SheetContent: CombinedComponent {
             self.idleTimerExtensionDisposable.dispose()
             self.animator?.invalidate()
             
-            if UIScreen.main.brightness > 0.99, let initialBrightness = self.initialBrightness {
-                self.brightnessArguments = (CACurrentMediaTime(), 0.3, UIScreen.main.brightness, initialBrightness)
+            if let screen = self.screen, screen.brightness > 0.99, let initialBrightness = self.initialBrightness {
+                self.brightnessArguments = (CACurrentMediaTime(), 0.3, screen.brightness, initialBrightness)
                 self.updateBrightness()
             }
         }
         
         private func updateBrightness() {
-            if let (startTime, duration, initial, target) = self.brightnessArguments {
+            if let screen = self.screen, let (startTime, duration, initial, target) = self.brightnessArguments {
                 self.animator?.isPaused = false
                 
                 let t = CGFloat(max(0.0, min(1.0, (CACurrentMediaTime() - startTime) / duration)))
                 let value = initial + (target - initial) * t
                 
-                UIScreen.main.brightness = value
+                screen.brightness = value
                 
                 if t >= 1.0 {
                     self.brightnessArguments = nil

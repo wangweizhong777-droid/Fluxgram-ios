@@ -75,12 +75,12 @@ class CreateGiveawayHeaderItemNode: ItemListControllerHeaderItemNode {
         self.titleNode = ImmediateTextNode()
         self.titleNode.isUserInteractionEnabled = false
         self.titleNode.contentMode = .left
-        self.titleNode.contentsScale = UIScreen.main.scale
+        self.titleNode.contentsScale = UIScreenScale
         
         self.textNode = ImmediateTextNode()
         self.textNode.isUserInteractionEnabled = false
         self.textNode.contentMode = .left
-        self.textNode.contentsScale = UIScreen.main.scale
+        self.textNode.contentsScale = UIScreenScale
         self.textNode.maximumNumberOfLines = 0
                 
         super.init()

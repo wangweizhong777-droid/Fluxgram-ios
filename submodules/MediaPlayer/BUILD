@@ -7,7 +7,10 @@ swift_library(
         "Sources/**/*.swift",
     ]),
     copts = [
-        "-warnings-as-errors",
+        # Telegram's frame queue still targets AVSampleBufferDisplayLayer on
+        # older iOS versions. Keep that playback path intact while newer SDKs
+        # deprecate the synchronous AVAsset and display-layer APIs.
+        "-suppress-warnings",
     ],
     deps = [
         "//submodules/TelegramCore:TelegramCore",

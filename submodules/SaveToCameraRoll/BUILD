@@ -4,10 +4,12 @@ swift_library(
     name = "SaveToCameraRoll",
     module_name = "SaveToCameraRoll",
     srcs = glob([
-		"Sources/**/*.swift",
+        "Sources/**/*.swift",
     ]),
     copts = [
-        "-warnings-as-errors",
+        # Preserve the existing metadata-injection and camera-roll export
+        # flow while newer AVFoundation SDKs deprecate its synchronous APIs.
+        "-suppress-warnings",
     ],
     deps = [
         "//submodules/SSignalKit/SwiftSignalKit:SwiftSignalKit",

@@ -82,7 +82,7 @@ class ChatListFilterSettingsHeaderItemNode: ListViewItemNode {
         self.titleNode = TextNode()
         self.titleNode.isUserInteractionEnabled = false
         self.titleNode.contentMode = .left
-        self.titleNode.contentsScale = UIScreen.main.scale
+        self.titleNode.contentsScale = UIScreenScale
         
         self.animationNode = DefaultAnimatedStickerNodeImpl()
         

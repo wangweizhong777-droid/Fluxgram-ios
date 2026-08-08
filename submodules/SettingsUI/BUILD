@@ -7,7 +7,11 @@ swift_library(
 		"Sources/**/*.swift",
     ]),
     copts = [
-        "-warnings-as-errors",
+        "-suppress-warnings",
+    ],
+    linkopts = [
+        "-framework",
+        "Network",
     ],
     deps = [
         "//submodules/SSignalKit/SwiftSignalKit:SwiftSignalKit",

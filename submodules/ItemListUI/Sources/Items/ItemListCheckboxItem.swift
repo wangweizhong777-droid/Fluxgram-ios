@@ -163,12 +163,12 @@ public class ItemListCheckboxItemNode: ItemListRevealOptionsItemNode {
         self.titleNode = TextNode()
         self.titleNode.isUserInteractionEnabled = false
         self.titleNode.contentMode = .left
-        self.titleNode.contentsScale = UIScreen.main.scale
+        self.titleNode.contentsScale = UIScreenScale
         
         self.subtitleNode = TextNode()
         self.subtitleNode.isUserInteractionEnabled = false
         self.subtitleNode.contentMode = .left
-        self.subtitleNode.contentsScale = UIScreen.main.scale
+        self.subtitleNode.contentsScale = UIScreenScale
         
         self.highlightedBackgroundNode = ASDisplayNode()
         self.highlightedBackgroundNode.isLayerBacked = true

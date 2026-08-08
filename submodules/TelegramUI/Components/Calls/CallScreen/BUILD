@@ -54,7 +54,9 @@ swift_library(
         "Sources/**/*.swift",
     ]),
     copts = [
-        "-warnings-as-errors",
+        # Call UI keeps the legacy AVSampleBufferDisplayLayer path for older
+        # iOS versions while the system deprecates that renderer.
+        "-suppress-warnings",
     ],
     data = [
         ":CallScreenMetalSourcesBundle",

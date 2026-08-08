@@ -101,6 +101,7 @@ private class BundleManager {
     static internal let manager = BundleManager()
 
     private var cgFonts = [MathFont: CGFont]()
+    private var fontURLs = [MathFont: URL]()
     private var ctFonts = [CTFontSizePair: CTFont]()
     private var rawMathTables = [MathFont: NSDictionary]()
 
@@ -121,18 +122,42 @@ private class BundleManager {
         }
         
         cgFonts[mathFont] = defaultCGFont
+        let fontURL = URL(fileURLWithPath: resourceBundleURL)
         
         /// This does not load the complete math font, it only has about half the glyphs of the full math font.
         /// In particular it does not have the math italic characters which breaks our variable rendering.
         /// So we first load a CGFont from the file and then convert it to a CTFont.
-        var errorRef: Unmanaged<CFError>? = nil
-        guard CTFontManagerRegisterGraphicsFont(defaultCGFont, &errorRef) else {
-            throw FontError.registerFailed
-        }
+        try registerFont(defaultCGFont, from: fontURL)
+        fontURLs[mathFont] = fontURL
         let postsript  = (defaultCGFont.postScriptName as? String) ?? ""
         let cgfontName = (defaultCGFont.fullName as? String) ?? ""
         let threadName = Thread.isMainThread ? "main" : "global"
         debugPrint("mathFonts bundle resource: \(mathFont.rawValue), font: \(cgfontName), ps: \(postsript) registered on \(threadName).")
+    }
+
+    private func registerFont(_ cgFont: CGFont, from url: URL) throws {
+        var errorRef: Unmanaged<CFError>? = nil
+        #if os(iOS) || os(visionOS)
+        if #available(iOS 18.0, visionOS 2.0, *) {
+            guard CTFontManagerRegisterFontsForURL(url as CFURL, .process, &errorRef) else {
+                throw FontError.registerFailed
+            }
+        } else {
+            guard CTFontManagerRegisterGraphicsFont(cgFont, &errorRef) else {
+                throw FontError.registerFailed
+            }
+        }
+        #elseif os(macOS)
+        if #available(macOS 15.0, *) {
+            guard CTFontManagerRegisterFontsForURL(url as CFURL, .process, &errorRef) else {
+                throw FontError.registerFailed
+            }
+        } else {
+            guard CTFontManagerRegisterGraphicsFont(cgFont, &errorRef) else {
+                throw FontError.registerFailed
+            }
+        }
+        #endif
     }
     
     private func registerMathTable(mathFont: MathFont) throws {
@@ -205,9 +230,24 @@ private class BundleManager {
     deinit {
         ctFonts.removeAll()
         var errorRef: Unmanaged<CFError>? = nil
-        cgFonts.values.forEach { cgFont in
-            CTFontManagerUnregisterGraphicsFont(cgFont, &errorRef)
+        cgFonts.forEach { mathFont, cgFont in
+            if let fontURL = fontURLs[mathFont] {
+                #if os(iOS) || os(visionOS)
+                if #available(iOS 18.0, visionOS 2.0, *) {
+                    CTFontManagerUnregisterFontsForURL(fontURL as CFURL, .process, &errorRef)
+                } else {
+                    CTFontManagerUnregisterGraphicsFont(cgFont, &errorRef)
+                }
+                #elseif os(macOS)
+                if #available(macOS 15.0, *) {
+                    CTFontManagerUnregisterFontsForURL(fontURL as CFURL, .process, &errorRef)
+                } else {
+                    CTFontManagerUnregisterGraphicsFont(cgFont, &errorRef)
+                }
+                #endif
+            }
         }
+        fontURLs.removeAll()
         cgFonts.removeAll()
     }
     public enum FontError: Error {

@@ -278,6 +278,31 @@ public extension TelegramEngine {
         public func clearCachedMediaResources(mediaResourceIds: Set<EngineMediaResource.Id>) -> Signal<Float, NoError> {
             return _internal_clearCachedMediaResources(account: self.account, mediaResourceIds: Set(mediaResourceIds.map { MediaResourceId($0.stringRepresentation) }))
         }
+
+        public func refreshFileReference(message: EngineMessage, file: TelegramMediaFile) -> Signal<TelegramMediaFile?, NoError> {
+            let reference = FileMediaReference.message(
+                message: MessageReference(message._asMessage()),
+                media: file
+            ).resourceReference(file.resource)
+            return revalidateMediaResourceReference(
+                accountPeerId: self.account.peerId,
+                postbox: self.account.postbox,
+                network: self.account.network,
+                revalidationContext: self.account.mediaReferenceRevalidationContext,
+                info: TelegramCloudMediaResourceFetchInfo(
+                    reference: reference,
+                    preferBackgroundReferenceRevalidation: false,
+                    continueInBackground: false
+                ),
+                resource: file.resource
+            )
+            |> map { result -> TelegramMediaFile? in
+                return file.withUpdatedResource(result.updatedResource)
+            }
+            |> `catch` { _ -> Signal<TelegramMediaFile?, NoError> in
+                return .single(nil)
+            }
+        }
         
         public func reindexCacheInBackground(lowImpact: Bool) -> Signal<Never, NoError> {
             let mediaBox = self.account.postbox.mediaBox

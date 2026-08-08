@@ -434,11 +434,13 @@ final class TextProcessingContentComponent: Component {
                 }
                 
                 func takeView() -> ContextControllerTakeViewInfo? {
-                    return ContextControllerTakeViewInfo(containingItem: .view(self.contentView), contentAreaInScreenSpace: UIScreen.main.bounds)
+                    let screenBounds = self.contentView.window?.windowScene?.screen.bounds ?? self.contentView.bounds
+                    return ContextControllerTakeViewInfo(containingItem: .view(self.contentView), contentAreaInScreenSpace: screenBounds)
                 }
                 
                 func putBack() -> ContextControllerPutBackViewInfo? {
-                    return ContextControllerPutBackViewInfo(contentAreaInScreenSpace: UIScreen.main.bounds)
+                    let screenBounds = self.contentView.window?.windowScene?.screen.bounds ?? self.contentView.bounds
+                    return ContextControllerPutBackViewInfo(contentAreaInScreenSpace: screenBounds)
                 }
             }
             

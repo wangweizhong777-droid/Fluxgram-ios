@@ -1,3 +1,6 @@
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+
 #import <AVFoundation/AVFoundation.h>
 
 #import <LegacyComponents/PGCamera.h>
@@ -70,3 +73,5 @@
 + (SQueue *)cameraQueue;
 
 @end
+
+#pragma clang diagnostic pop

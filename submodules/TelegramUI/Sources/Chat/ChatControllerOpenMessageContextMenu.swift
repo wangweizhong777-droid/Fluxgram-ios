@@ -1,12 +1,15 @@
 import Foundation
 import UIKit
 import SwiftSignalKit
+import Postbox
 import TelegramCore
+import TelegramApi
 import AsyncDisplayKit
 import Display
 import TelegramNotices
 import ContextUI
 import AccountContext
+import SettingsUI
 import ChatMessageItemView
 import ChatMessageItemCommon
 import ReactionSelectionNode
@@ -18,6 +21,36 @@ import TopMessageReactions
 import TelegramNotices
 import PresentationDataUtils
 import ChatPresentationInterfaceState
+
+private func fluxgramPeerAccessHash(context: AccountContext, peerId: PeerId, fallback: String?) -> Signal<String?, NoError> {
+    return context.account.postbox.transaction { transaction -> String? in
+        return (transaction.getPeer(peerId) as? TelegramUser)?.accessHash.map { String($0.value) }
+    }
+    |> mapToSignal { storedAccessHash -> Signal<String?, NoError> in
+        if let storedAccessHash {
+            return .single(storedAccessHash)
+        }
+        guard peerId.namespace == Namespaces.Peer.CloudUser else {
+            return .single(fallback)
+        }
+        let inputUser = Api.InputUser.inputUser(.init(
+            userId: peerId.id._internalGetInt64Value(),
+            accessHash: 0
+        ))
+        return context.account.network.request(Api.functions.users.getUsers(id: [inputUser]))
+        |> map { users -> String? in
+            for user in users {
+                if case let .user(userData) = user, userData.id == peerId.id._internalGetInt64Value(), let accessHash = userData.accessHash {
+                    return String(accessHash)
+                }
+            }
+            return fallback
+        }
+        |> `catch` { _ -> Signal<String?, NoError> in
+            return .single(fallback)
+        }
+    }
+}
 
 extension ChatControllerImpl {
     func openMessageContextMenu(message: EngineMessage, selectAll: Bool, node: ASDisplayNode, frame: CGRect, anyRecognizer: UIGestureRecognizer?, location: CGPoint?) -> Void {
@@ -70,6 +103,124 @@ extension ChatControllerImpl {
                     }
                 case .custom, .twoLists:
                     break
+                }
+
+                let hasDownloadableMedia = message.media.contains { media in
+                    return media is TelegramMediaImage || media is TelegramMediaFile
+                }
+                let isPaidMedia = message.media.contains { $0 is TelegramMediaPaidContent }
+                let isSecretChat = message.id.peerId.namespace == Namespaces.Peer.SecretChat
+                if hasDownloadableMedia && !isPaidMedia && !isSecretChat, case var .list(itemList) = actions.content {
+                    let sourcePeer = message.peers[message.id.peerId]
+                    if let sourcePeer, sourcePeer is TelegramChannel || sourcePeer is TelegramGroup {
+                        itemList.append(.action(ContextMenuActionItem(
+                            text: "加入短视频流",
+                            icon: { theme in
+                                return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Play"), color: theme.contextMenu.primaryColor)
+                            },
+                            action: { [weak self] _, f in
+                                f(.default)
+                                guard let self else {
+                                    return
+                                }
+                                let added = FluxgramShortVideoStore.add(dialogId: message.id.peerId.toInt64(), title: sourcePeer.debugDisplayTitle)
+                                let presentationData = self.presentationData
+                                self.present(standardTextAlertController(theme: AlertControllerTheme(presentationData: presentationData), title: nil, text: added ? "已加入短视频来源。" : "该会话已启用为短视频来源。", actions: [TextAlertAction(type: .defaultAction, title: presentationData.strings.Common_OK, action: {})]), in: .window(.root))
+                            }
+                        )))
+                    }
+                    itemList.append(.action(ContextMenuActionItem(
+                        text: "下载到 NAS",
+                        icon: { theme in
+                            return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Download"), color: theme.contextMenu.primaryColor)
+                        },
+                        action: { [weak self] _, f in
+                            f(.default)
+                            guard let self else {
+                                return
+                            }
+                            let messagePeerAccessHash = (message.peers[message.id.peerId] as? TelegramUser).flatMap { peer in
+                                peer.accessHash.map { String($0.value) }
+                            }
+                            if let directFile = fluxgramDirectFile(message: message) {
+                                let _ = (self.context.engine.resources.refreshFileReference(message: message, file: directFile)
+                                |> deliverOnMainQueue).start(next: { [weak self] refreshedFile in
+                                    guard let self else {
+                                        return
+                                    }
+                                    let refreshedMessage: EngineMessage
+                                    if let refreshedFile {
+                                        let rawMessage = message._asMessage()
+                                        refreshedMessage = EngineMessage(rawMessage.withUpdatedMedia(rawMessage.media.map { media in
+                                            return media.id == directFile.id ? refreshedFile : media
+                                        }))
+                                    } else {
+                                        refreshedMessage = message
+                                    }
+                                    guard let directDocument = fluxgramDirectDocument(message: refreshedMessage) else {
+                                        return
+                                    }
+                                    fluxgramDownloadFolderActionSheet(
+                                        context: self.context,
+                                        dialogId: message.id.peerId.toInt64(),
+                                        messageId: message.id.id,
+                                        peerAccessHash: nil,
+                                        directDocument: directDocument,
+                                        present: { [weak self] controller in
+                                            self?.present(controller, in: .window(.root))
+                                        }
+                                    )
+                                })
+                                return
+                            }
+                            let _ = (fluxgramPeerAccessHash(context: self.context, peerId: message.id.peerId, fallback: messagePeerAccessHash)
+                            |> deliverOnMainQueue).start(next: { [weak self] storedPeerAccessHash in
+                                guard let self else {
+                                    return
+                                }
+                                fluxgramDownloadFolderActionSheet(
+                                    context: self.context,
+                                    dialogId: message.id.peerId.toInt64(),
+                                    messageId: message.id.id,
+                                    peerAccessHash: storedPeerAccessHash ?? messagePeerAccessHash,
+                                    directDocument: nil,
+                                    present: { [weak self] controller in
+                                        self?.present(controller, in: .window(.root))
+                                    }
+                                )
+                            })
+                        }
+                    )))
+                    let groupMessages = messages.map(EngineMessage.init)
+                    let groupMediaCount = groupMessages.reduce(into: 0) { count, groupMessage in
+                        if groupMessage.media.contains(where: { $0 is TelegramMediaImage || ($0 as? TelegramMediaFile)?.isVideo == true }) {
+                            count += 1
+                        }
+                    }
+                    if groupMediaCount > 1 {
+                        itemList.append(.action(ContextMenuActionItem(
+                            text: "选择媒体下载到 NAS",
+                            icon: { theme in
+                                return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Download"), color: theme.contextMenu.primaryColor)
+                            },
+                            action: { [weak self] _, f in
+                                f(.default)
+                                guard let self else {
+                                    return
+                                }
+                                let messageIds = groupMessages.compactMap { groupMessage -> EngineMessage.Id? in
+                                    guard groupMessage.media.contains(where: { $0 is TelegramMediaImage || ($0 as? TelegramMediaFile)?.isVideo == true }) else {
+                                        return nil
+                                    }
+                                    return groupMessage.id
+                                }
+                                self.updateChatPresentationInterfaceState(animated: true, interactive: true, {
+                                    $0.updatedInterfaceState { $0.withUpdatedSelectedMessages(messageIds) }.updatedShowCommands(false)
+                                })
+                            }
+                        )))
+                    }
+                    actions.content = .list(itemList)
                 }
                 
                 if allowedReactions != nil, case let .customChatContents(customChatContents) = self.presentationInterfaceState.subject {

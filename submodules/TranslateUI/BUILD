@@ -4,10 +4,12 @@ swift_library(
     name = "TranslateUI",
     module_name = "TranslateUI",
     srcs = glob([
-		"Sources/**/*.swift",
+        "Sources/**/*.swift",
     ]),
     copts = [
-        "-warnings-as-errors",
+        # Keep the iOS 13-compatible SwiftUI change handlers while newer
+        # SDKs deprecate the original onChange overload.
+        "-suppress-warnings",
     ],
     deps = [
         "//submodules/SSignalKit/SwiftSignalKit:SwiftSignalKit",

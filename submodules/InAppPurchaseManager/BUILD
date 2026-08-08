@@ -7,7 +7,9 @@ swift_library(
         "Sources/**/*.swift",
     ]),
     copts = [
-        "-warnings-as-errors",
+        # This module intentionally retains the StoreKit 1 transaction state
+        # machine used by the current account purchase flow.
+        "-suppress-warnings",
     ],
     deps = [
         "//submodules/SSignalKit/SwiftSignalKit:SwiftSignalKit",

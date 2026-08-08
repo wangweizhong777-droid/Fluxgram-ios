@@ -839,12 +839,12 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
         self.titleNode = TextNode()
         self.titleNode.isUserInteractionEnabled = false
         self.titleNode.contentMode = .left
-        self.titleNode.contentsScale = UIScreen.main.scale
+        self.titleNode.contentsScale = UIScreenScale
         
         self.statusNode = TextNode()
         self.statusNode.isUserInteractionEnabled = false
         self.statusNode.contentMode = .left
-        self.statusNode.contentsScale = UIScreen.main.scale
+        self.statusNode.contentsScale = UIScreenScale
         
         self.labelNode = TextNodeWithEntities()
         

@@ -8,18 +8,20 @@ public enum ScreenCaptureEvent {
 }
 
 private final class ScreenRecordingObserver: NSObject {
+    let screen: UIScreen
     let f: (Bool) -> Void
     
-    init(_ f: @escaping (Bool) -> Void) {
+    init(screen: UIScreen, _ f: @escaping (Bool) -> Void) {
+        self.screen = screen
         self.f = f
         
         super.init()
         
-        UIScreen.main.addObserver(self, forKeyPath: "captured", options: [.new], context: nil)
+        screen.addObserver(self, forKeyPath: "captured", options: [.new], context: nil)
     }
     
     func clear() {
-        UIScreen.main.removeObserver(self, forKeyPath: "captured")
+        screen.removeObserver(self, forKeyPath: "captured")
     }
     
     override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {
@@ -31,11 +33,16 @@ private final class ScreenRecordingObserver: NSObject {
     }
 }
 
+private func currentScreen() -> UIScreen? {
+    let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+    return scenes.first(where: { $0.activationState == .foregroundActive })?.screen ?? scenes.first?.screen
+}
+
 private func screenRecordingActive() -> Signal<Bool, NoError> {
     return Signal { subscriber in
-        if #available(iOSApplicationExtension 11.0, iOS 11.0, *) {
-            subscriber.putNext(UIScreen.main.isCaptured)
-            let observer = ScreenRecordingObserver({ value in
+        if #available(iOSApplicationExtension 11.0, iOS 11.0, *), let screen = currentScreen() {
+            subscriber.putNext(screen.isCaptured)
+            let observer = ScreenRecordingObserver(screen: screen, { value in
                 subscriber.putNext(value)
             })
             return ActionDisposable {

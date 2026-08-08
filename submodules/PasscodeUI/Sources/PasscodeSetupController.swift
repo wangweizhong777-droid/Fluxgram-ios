@@ -39,7 +39,8 @@ public final class PasscodeSetupController: ViewController {
         self.supportedOrientations = ViewControllerSupportedOrientations(regularSize: .all, compactSize: .portrait)
         self.statusBar.statusBarStyle = self.presentationData.theme.rootController.statusBarStyle.style
         
-        self.nextAction = UIBarButtonItem(title: self.presentationData.strings.Common_Next, style: .done, target: self, action: #selector(self.nextPressed))
+        let nextStyle = UIBarButtonItem.Style(rawValue: 2) ?? .plain
+        self.nextAction = UIBarButtonItem(title: self.presentationData.strings.Common_Next, style: nextStyle, target: self, action: #selector(self.nextPressed))
         
         self.title = self.presentationData.strings.PasscodeSettings_Title
     }

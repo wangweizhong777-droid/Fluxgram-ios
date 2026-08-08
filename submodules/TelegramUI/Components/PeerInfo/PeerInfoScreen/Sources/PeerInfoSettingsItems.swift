@@ -14,6 +14,7 @@ import TelegramStringFormatting
 import PeerNameColorItem
 
 enum SettingsSection: Int, CaseIterable {
+    case fluxgram
     case edit
     case phone
     case accounts
@@ -315,6 +316,18 @@ func settingsItems(data: PeerInfoScreenData?, context: AccountContext, presentat
             }))
         }
     }
+    items[.fluxgram]!.append(PeerInfoScreenDisclosureItem(id: 0, text: "Fluxgram", icon: PresentationResourcesSettings.dataAndStorage, action: {
+        interaction.openSettings(.fluxgram)
+    }))
+    items[.fluxgram]!.append(PeerInfoScreenDisclosureItem(id: 1, text: "NAS 下载", icon: PresentationResourcesSettings.download, action: {
+        interaction.openSettings(.fluxgramDownloads)
+    }))
+    items[.fluxgram]!.append(PeerInfoScreenDisclosureItem(id: 2, text: "收藏箱", icon: UIImage(bundleImageName: "Chat/Context Menu/Save"), action: {
+        interaction.openSettings(.fluxgramFavorites)
+    }))
+    items[.fluxgram]!.append(PeerInfoScreenDisclosureItem(id: 3, text: "短视频流", icon: PresentationResourcesSettings.videosBlue, action: {
+        interaction.openSettings(.fluxgramShortVideos)
+    }))
     
     items[.support]!.append(PeerInfoScreenDisclosureItem(id: 0, text: presentationData.strings.Settings_Support, icon: PresentationResourcesSettings.support, action: {
         interaction.openSettings(.support)

@@ -1,3 +1,6 @@
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+
 #import <Foundation/Foundation.h>
 #import <AVFoundation/AVFoundation.h>
 #import <UIKit/UIKit.h>
@@ -52,3 +55,5 @@ extern const CGSize TGPhotoEditorResultImageAvatarMaxSize;
 #ifdef __cplusplus
 }
 #endif
+
+#pragma clang diagnostic pop

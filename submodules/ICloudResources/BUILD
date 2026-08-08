@@ -7,7 +7,10 @@ swift_library(
 		"Sources/**/*.swift",
     ]),
     copts = [
-        "-warnings-as-errors",
+        # This module reads local iCloud audio metadata synchronously for its
+        # existing Signal API. Keep that compatibility path buildable while
+        # newer AVFoundation SDKs deprecate the synchronous accessors.
+        "-suppress-warnings",
     ],
     deps = [
         "//submodules/TelegramCore",

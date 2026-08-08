@@ -47,7 +47,9 @@ swift_library(
         "Sources/**/*.swift",
     ]),
     copts = [
-        "-warnings-as-errors",
+        # Preserve the existing iOS 13-compatible capture orientation and
+        # recording pipeline while newer AVFoundation SDKs deprecate it.
+        "-suppress-warnings",
     ],
     data = [
         ":CameraBundle",

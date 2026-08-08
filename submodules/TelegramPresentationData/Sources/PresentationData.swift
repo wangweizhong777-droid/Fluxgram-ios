@@ -484,6 +484,23 @@ private struct AutomaticThemeSwitchParameters {
     }
 }
 
+private func activeApplicationScreen() -> UIScreen? {
+    let screens = UIApplication.shared.connectedScenes.compactMap { scene -> UIScreen? in
+        guard let windowScene = scene as? UIWindowScene else {
+            return nil
+        }
+        return windowScene.screen
+    }
+    return screens.first(where: { screen in
+        UIApplication.shared.connectedScenes.contains { scene in
+            guard let windowScene = scene as? UIWindowScene, windowScene.screen === screen else {
+                return false
+            }
+            return windowScene.activationState == .foregroundActive
+        }
+    }) ?? screens.first
+}
+
 private func automaticThemeShouldSwitchNow(_ parameters: AutomaticThemeSwitchParameters, systemUserInterfaceStyle: WindowUserInterfaceStyle) -> Bool {
     switch parameters.trigger {
         case .explicitNone:
@@ -500,7 +517,7 @@ private func automaticThemeShouldSwitchNow(_ parameters: AutomaticThemeSwitchPar
                 return false
             }
         case let .brightness(threshold):
-            return UIScreen.main.brightness <= CGFloat(threshold)
+            return (activeApplicationScreen()?.brightness ?? 0.5) <= CGFloat(threshold)
     }
 }
 

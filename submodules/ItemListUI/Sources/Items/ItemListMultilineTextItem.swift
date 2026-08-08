@@ -120,7 +120,7 @@ public class ItemListMultilineTextItemNode: ListViewItemNode {
         self.textNode = TextNode()
         self.textNode.isUserInteractionEnabled = false
         self.textNode.contentMode = .left
-        self.textNode.contentsScale = UIScreen.main.scale
+        self.textNode.contentsScale = UIScreenScale
         
         self.highlightedBackgroundNode = ASDisplayNode()
         self.highlightedBackgroundNode.isLayerBacked = true

@@ -7,7 +7,9 @@ swift_library(
         "Source/**/*.swift",
     ]),
     copts = [
-        "-warnings-as-errors",
+        # Display keeps compatibility paths for older iOS versions. The
+        # current SDK diagnoses those legacy UIKit APIs as deprecated errors.
+        "-suppress-warnings",
     ],
     deps = [
     	"//submodules/ObjCRuntimeUtils:ObjCRuntimeUtils",

@@ -7,7 +7,9 @@ swift_library(
         "Sources/**/*.swift",
     ]),
     copts = [
-        "-warnings-as-errors",
+        # Keep the existing Siri intent payload compatible with older iOS
+        # versions while newer Intents SDKs deprecate its initializer.
+        "-suppress-warnings",
     ],
     deps = [
     	"//submodules/TelegramCore:TelegramCore",

@@ -1029,7 +1029,7 @@ public class ForumCreateTopicScreen: ViewControllerComponentContainer {
         
         self.navigationItem.leftBarButtonItem = UIBarButtonItem(title: "___close", style: .plain, target: self, action: #selector(self.cancelPressed))
         
-        self.doneBarItem = UIBarButtonItem(title: doneTitle, style: .done, target: self, action: #selector(self.createPressed))
+        self.doneBarItem = UIBarButtonItem(title: doneTitle, style: UIBarButtonItem.Style(rawValue: 2) ?? .plain, target: self, action: #selector(self.createPressed))
         self.navigationItem.rightBarButtonItem = self.doneBarItem
         self.doneBarItem?.isEnabled = false
         

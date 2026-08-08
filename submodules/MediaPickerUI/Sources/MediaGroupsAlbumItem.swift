@@ -150,7 +150,7 @@ class MediaGroupsAlbumItemNode: ListViewItemNode {
         self.titleNode = TextNode()
         self.titleNode.isUserInteractionEnabled = false
         self.titleNode.contentMode = .left
-        self.titleNode.contentsScale = UIScreen.main.scale
+        self.titleNode.contentsScale = UIScreenScale
         
         self.iconNode = ASImageNode()
         self.iconNode.isLayerBacked = true
@@ -160,7 +160,7 @@ class MediaGroupsAlbumItemNode: ListViewItemNode {
         self.countNode = TextNode()
         self.countNode.isUserInteractionEnabled = false
         self.countNode.contentMode = .left
-        self.countNode.contentsScale = UIScreen.main.scale
+        self.countNode.contentsScale = UIScreenScale
         
         self.arrowNode = ASImageNode()
         self.arrowNode.isLayerBacked = true

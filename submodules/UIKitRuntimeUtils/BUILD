@@ -8,6 +8,10 @@ objc_library(
     ]),
     copts = [
         "-Werror",
+        # This compatibility layer intentionally keeps legacy UIKit APIs for
+        # older iOS versions. New SDKs mark those APIs deprecated, but they
+        # remain required by the runtime shims.
+        "-Wno-deprecated-declarations",
     ],
     hdrs = glob([
         "Source/UIKitRuntimeUtils/*.h",

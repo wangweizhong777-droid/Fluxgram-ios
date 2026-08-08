@@ -907,7 +907,7 @@ private final class NativePictureInPictureContentImpl: NSObject, AVPictureInPict
     }
 }
 
-final class UniversalVideoGalleryItemNode: ZoomableContentGalleryItemNode {
+final class UniversalVideoGalleryItemNode: ZoomableContentGalleryItemNode, UIGestureRecognizerDelegate {
     private let context: AccountContext
     private let presentationData: PresentationData
     
@@ -965,6 +965,12 @@ final class UniversalVideoGalleryItemNode: ZoomableContentGalleryItemNode {
     
     private var playerStatusValue: MediaPlayerStatus?
     private let statusDisposable = MetaDisposable()
+
+    private var seekPanInitialTimestamp: Double?
+    private var seekPanDuration: Double?
+    private var seekPanLastTimestamp: Double?
+    private var seekPanShouldResumePlayback = false
+    private weak var seekPanGesture: UIPanGestureRecognizer?
     
     private let moreButtonStateDisposable = MetaDisposable()
     private let mediaPlaybackStateDisposable = MetaDisposable()
@@ -2102,6 +2108,84 @@ final class UniversalVideoGalleryItemNode: ZoomableContentGalleryItemNode {
         }
         
         self.updateLivePhotoButton()
+    }
+
+    override func didLoad() {
+        super.didLoad()
+
+        let recognizer = UIPanGestureRecognizer(target: self, action: #selector(self.videoSeekPanGesture(_:)))
+        recognizer.delegate = self
+        recognizer.maximumNumberOfTouches = 1
+        self.seekPanGesture = recognizer
+        self.scrollNode.view.addGestureRecognizer(recognizer)
+        self.scrollNode.view.panGestureRecognizer.require(toFail: recognizer)
+    }
+
+    override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        guard gestureRecognizer === self.seekPanGesture else {
+            return super.gestureRecognizerShouldBegin(gestureRecognizer)
+        }
+        guard gestureRecognizer is UIPanGestureRecognizer,
+              let status = self.playerStatusValue,
+              status.duration > 0.0,
+              self.videoNode != nil else {
+            return false
+        }
+        let velocity = (gestureRecognizer as! UIPanGestureRecognizer).velocity(in: self.scrollNode.view)
+        return abs(velocity.x) > abs(velocity.y) && abs(velocity.x) > 20.0
+    }
+
+    @objc private func videoSeekPanGesture(_ recognizer: UIPanGestureRecognizer) {
+        guard let videoNode = self.videoNode else {
+            return
+        }
+
+        switch recognizer.state {
+        case .began:
+            guard let status = self.playerStatusValue, status.duration > 0.0 else {
+                return
+            }
+            self.seekPanInitialTimestamp = status.timestamp
+            self.seekPanDuration = status.duration
+            self.seekPanLastTimestamp = status.timestamp
+            self.seekPanShouldResumePlayback = status.status == .playing
+            self.isInteractingPromise.set(true)
+            self.updateControlsVisibility(true)
+            if self.seekPanShouldResumePlayback {
+                videoNode.pause()
+            }
+        case .changed, .ended:
+            guard let initialTimestamp = self.seekPanInitialTimestamp,
+                  let duration = self.seekPanDuration else {
+                return
+            }
+            let width = max(self.scrollNode.bounds.width, 1.0)
+            let translation = recognizer.translation(in: self.scrollNode.view).x
+            let timestamp = min(max(initialTimestamp + Double(translation / width) * duration, 0.0), duration)
+            if recognizer.state == .ended || self.seekPanLastTimestamp == nil || abs(timestamp - self.seekPanLastTimestamp!) >= 0.15 {
+                self.seekPanLastTimestamp = timestamp
+                videoNode.seek(timestamp)
+            }
+            if recognizer.state == .ended {
+                self.finishSeekPan(videoNode: videoNode)
+            }
+        case .cancelled, .failed:
+            self.finishSeekPan(videoNode: videoNode)
+        default:
+            break
+        }
+    }
+
+    private func finishSeekPan(videoNode: UniversalVideoNode) {
+        let shouldResumePlayback = self.seekPanShouldResumePlayback
+        self.seekPanInitialTimestamp = nil
+        self.seekPanDuration = nil
+        self.seekPanLastTimestamp = nil
+        self.seekPanShouldResumePlayback = false
+        self.isInteractingPromise.set(false)
+        if shouldResumePlayback {
+            videoNode.play()
+        }
     }
     
     override func controlsVisibilityUpdated(isVisible: Bool, animated: Bool) {
@@ -4206,7 +4290,8 @@ final class HeaderContextReferenceContentSource: ContextReferenceContentSource {
     }
 
     func transitionInfo() -> ContextControllerReferenceViewInfo? {
-        return ContextControllerReferenceViewInfo(referenceView: self.sourceView, contentAreaInScreenSpace: UIScreen.main.bounds, actionsPosition: self.actionsOnTop ? .top : .bottom)
+        let screenBounds = self.sourceView.window?.windowScene?.screen.bounds ?? self.sourceView.bounds
+        return ContextControllerReferenceViewInfo(referenceView: self.sourceView, contentAreaInScreenSpace: screenBounds, actionsPosition: self.actionsOnTop ? .top : .bottom)
     }
 }
 

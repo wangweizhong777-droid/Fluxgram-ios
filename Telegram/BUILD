@@ -331,7 +331,7 @@ alternate_icon_folders = [
     "PremiumTurbo",
 ]
 
-composer_icon_folders = ["Telegram"]
+composer_icon_folders = ["Fluxgram"]
 
 [
     filegroup(
@@ -346,7 +346,7 @@ composer_icon_folders = ["Telegram"]
     filegroup(
         name = "{}_icon".format(name),
         srcs = glob([
-            "Telegram-iOS/{}.icon/**/*".format(name),
+            "Telegram-iOS/{}.xcassets/**/*".format(name),
         ]),
     ) for name in composer_icon_folders
 ]
@@ -629,7 +629,7 @@ plist_fragment(
     template =
     """
     <key>CFBundleDisplayName</key>
-    <string>Telegram</string>
+    <string>Fluxgram</string>
     """
 )
 
@@ -1568,11 +1568,11 @@ plist_fragment(
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleDisplayName</key>
-    <string>Telegram</string>
+    <string>Fluxgram</string>
     <key>CFBundleIdentifier</key>
     <string>{telegram_bundle_id}</string>
     <key>CFBundleName</key>
-    <string>Telegram</string>
+    <string>Fluxgram</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleSignature</key>

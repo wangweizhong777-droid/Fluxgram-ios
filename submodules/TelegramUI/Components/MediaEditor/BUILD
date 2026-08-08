@@ -47,7 +47,9 @@ swift_library(
         "Sources/**/*.swift",
     ]),
     copts = [
-        "-warnings-as-errors",
+        # Keep the existing synchronous video composition pipeline while
+        # newer AVFoundation and Metal SDKs deprecate its APIs.
+        "-suppress-warnings",
     ],
     data = [
         ":MediaEditorBundle",

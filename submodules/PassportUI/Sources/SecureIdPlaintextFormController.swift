@@ -45,8 +45,8 @@ public final class SecureIdPlaintextFormController: FormController<SecureIdPlain
         }
         self.navigationItem.leftBarButtonItem = UIBarButtonItem(title: self.presentationData.strings.Common_Cancel, style: .plain, target: self, action: #selector(self.cancelPressed))
         
-        self.nextItem = UIBarButtonItem(title: self.presentationData.strings.Common_Next, style: .done, target: self, action: #selector(self.donePressed))
-        self.doneItem = UIBarButtonItem(title: self.presentationData.strings.Common_Done, style: .done, target: self, action: #selector(self.donePressed))
+        self.nextItem = UIBarButtonItem(title: self.presentationData.strings.Common_Next, style: UIBarButtonItem.Style(rawValue: 2) ?? .plain, target: self, action: #selector(self.donePressed))
+        self.doneItem = UIBarButtonItem(title: self.presentationData.strings.Common_Done, style: UIBarButtonItem.Style(rawValue: 2) ?? .plain, target: self, action: #selector(self.donePressed))
         self.navigationItem.rightBarButtonItem = doneItem
     }
     
