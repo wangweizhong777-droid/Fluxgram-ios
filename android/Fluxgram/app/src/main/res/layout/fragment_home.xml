@@ -1,0 +1,323 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_app_root"
+    android:clipToPadding="false"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingBottom="24dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:background="@color/bg_surface"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="16dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="FluxTok"
+                android:textColor="@color/text_primary"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/statusPill"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_status_pill"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="5dp"
+                android:text="待扫描"
+                android:textColor="@color/accent_neon"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:background="@color/bg_surface"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="14dp">
+
+            <TextView
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:background="@drawable/bg_status_pill"
+                android:gravity="center"
+                android:text="N"
+                android:textColor="@color/accent_neon"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/indexCount"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="0"
+                    android:textColor="@color/text_primary"
+                    android:textSize="24sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/indexInfo"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:maxLines="2"
+                    android:textColor="@color/text_tertiary"
+                    android:textSize="13sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/progressPanel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="1dp"
+            android:background="@color/bg_surface"
+            android:orientation="vertical"
+            android:paddingHorizontal="16dp"
+            android:paddingBottom="14dp"
+            android:visibility="gone">
+
+            <ProgressBar
+                android:id="@+id/progress"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="4dp"
+                android:indeterminate="true"
+                android:progressDrawable="@drawable/progress_scan" />
+
+            <TextView
+                android:id="@+id/progressText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:textColor="@color/text_tertiary"
+                android:textSize="13sp" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingStart="16dp"
+            android:paddingTop="20dp"
+            android:paddingBottom="7dp"
+            android:text="播放"
+            android:textColor="@color/accent_neon"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@color/bg_surface"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/btnEnter"
+                android:layout_width="match_parent"
+                android:layout_height="64dp"
+                android:drawableStart="@drawable/ic_play"
+                android:drawablePadding="16dp"
+                android:drawableTint="@color/accent_neon"
+                android:foreground="?android:attr/selectableItemBackground"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="16dp"
+                android:text="开始播放"
+                android:textColor="@color/text_primary"
+                android:textSize="16sp"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/btnInbox"
+                android:layout_width="match_parent"
+                android:layout_height="64dp"
+                android:background="@drawable/bg_panel_elevated"
+                android:drawableStart="@drawable/ic_tag"
+                android:drawablePadding="16dp"
+                android:drawableTint="@color/accent_neon"
+                android:foreground="?android:attr/selectableItemBackground"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="16dp"
+                android:text="待整理"
+                android:textColor="@color/text_primary"
+                android:textSize="16sp"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/btnTaggedVideos"
+                android:layout_width="match_parent"
+                android:layout_height="64dp"
+                android:background="@drawable/bg_panel_elevated"
+                android:drawableStart="@drawable/ic_tag"
+                android:drawablePadding="16dp"
+                android:drawableTint="@color/accent_neon"
+                android:foreground="?android:attr/selectableItemBackground"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="16dp"
+                android:text="随机播放已打标签视频"
+                android:textColor="@color/text_primary"
+                android:textSize="16sp"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/btnUntaggedVideos"
+                android:layout_width="match_parent"
+                android:layout_height="64dp"
+                android:background="@drawable/bg_panel_elevated"
+                android:drawableStart="@drawable/ic_play"
+                android:drawablePadding="16dp"
+                android:drawableTint="@color/accent_neon"
+                android:foreground="?android:attr/selectableItemBackground"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="16dp"
+                android:text="随机播放未打标签视频"
+                android:textColor="@color/text_primary"
+                android:textSize="16sp"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingStart="16dp"
+            android:paddingTop="20dp"
+            android:paddingBottom="7dp"
+            android:text="整理"
+            android:textColor="@color/accent_neon"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@color/bg_surface"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/btnTags"
+                android:layout_width="match_parent"
+                android:layout_height="64dp"
+                android:drawableStart="@drawable/ic_tag"
+                android:drawablePadding="16dp"
+                android:drawableTint="@color/accent_neon"
+                android:foreground="?android:attr/selectableItemBackground"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="16dp"
+                android:text="按标签筛选"
+                android:textColor="@color/text_primary"
+                android:textSize="16sp"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/btnManageTags"
+                android:layout_width="match_parent"
+                android:layout_height="64dp"
+                android:background="@drawable/bg_panel_elevated"
+                android:drawableStart="@drawable/ic_tag"
+                android:drawablePadding="16dp"
+                android:drawableTint="@color/accent_neon"
+                android:foreground="?android:attr/selectableItemBackground"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="16dp"
+                android:text="管理标签"
+                android:textColor="@color/text_primary"
+                android:textSize="16sp"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/btnTrash"
+                android:layout_width="match_parent"
+                android:layout_height="64dp"
+                android:background="@drawable/bg_panel_elevated"
+                android:drawableStart="@drawable/ic_delete"
+                android:drawablePadding="16dp"
+                android:drawableTint="@color/accent_neon"
+                android:foreground="?android:attr/selectableItemBackground"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="16dp"
+                android:text="回收站"
+                android:textColor="@color/text_primary"
+                android:textSize="16sp"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/btnSizeRange"
+                android:layout_width="match_parent"
+                android:layout_height="64dp"
+                android:background="@drawable/bg_panel_elevated"
+                android:drawableStart="@drawable/ic_play"
+                android:drawablePadding="16dp"
+                android:drawableTint="@color/accent_neon"
+                android:foreground="?android:attr/selectableItemBackground"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="16dp"
+                android:text="按大小筛选"
+                android:textColor="@color/text_primary"
+                android:textSize="16sp"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/btnNewVideos"
+                android:layout_width="match_parent"
+                android:layout_height="64dp"
+                android:background="@drawable/bg_panel_elevated"
+                android:drawableStart="@drawable/ic_play"
+                android:drawablePadding="16dp"
+                android:drawableTint="@color/accent_neon"
+                android:foreground="?android:attr/selectableItemBackground"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="16dp"
+                android:textColor="@color/text_primary"
+                android:textSize="16sp"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingStart="16dp"
+            android:paddingTop="20dp"
+            android:paddingBottom="7dp"
+            android:text="NAS"
+            android:textColor="@color/accent_neon"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/btnScan"
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:background="@color/bg_surface"
+                android:drawableStart="@drawable/ic_folder"
+                android:drawablePadding="16dp"
+                android:drawableTint="@color/accent_neon"
+            android:foreground="?android:attr/selectableItemBackground"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="16dp"
+            android:text="扫描视频库"
+            android:textColor="@color/text_primary"
+            android:textSize="16sp" />
+    </LinearLayout>
+</ScrollView>

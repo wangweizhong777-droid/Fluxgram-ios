@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Telegram login</title>
+    <style>
+      body { align-items: center; background: white; display: flex; height: 100vh; justify-content: center; margin: 0; }
+      img { height: min(90vh, 900px); image-rendering: pixelated; width: min(90vh, 900px); }
+    </style>
+  </head>
+  <body>
+    <img id="qr" alt="Telegram login QR code">
+    <script>
+      const image = document.getElementById("qr");
+      const refresh = () => { image.src = `tg-notify-login-live.png?${Date.now()}`; };
+      refresh();
+      setInterval(refresh, 1500);
+    </script>
+  </body>
+</html>

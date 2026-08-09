@@ -1,0 +1,31 @@
+services:
+  tg-notify:
+    build: .
+    container_name: tg-notify
+    env_file: .env
+    environment:
+      NODE_PATH: /opt/tgapp-node_modules
+      TELEGRAM_SESSION_PATH: /data/telegram
+      TELEGRAM_PROXY_HOST: host.docker.internal
+      TELEGRAM_PROXY_PORT: "7897"
+      TELEGRAM_PROXY_TYPE: "5"
+      BARK_SERVER: https://api.day.app
+      BARK_ICON_URL: ${BARK_ICON_URL:-https://your-gateway.example.com/notify-avatars/fluxgram-icon.png}
+      BARK_PUBLIC_BASE_URL: ${BARK_PUBLIC_BASE_URL:-https://your-gateway.example.com}
+      BARK_AVATAR_DIR: /public-avatars
+      BARK_LEVEL: active
+      MESSAGE_PREVIEW: "true"
+      NOTIFY_WATCHDOG_INTERVAL_MS: "30000"
+      NOTIFY_WATCHDOG_GRACE_MS: "120000"
+      NOTIFY_SEEN_MESSAGES_PATH: /data/seen-messages.json
+      NOTIFY_PENDING_NOTIFICATIONS_PATH: /data/pending-notifications.json
+      NOTIFY_SETTINGS_PATH: /data/notification-settings.json
+    volumes:
+      - ./data:/data
+      - ${TGAPP_NODE_MODULES_PATH:-./vendor/tgapp-node_modules}:/opt/tgapp-node_modules:ro
+      - ${TGAPP_AVATAR_DIR:-./public-avatars}:/public-avatars
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    ports:
+      - "30178:30178"
+    restart: unless-stopped

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Telegram/Nekogram-inspired light utility surfaces. -->
+    <color name="bg_primary">#FFF4F7FA</color>
+    <color name="bg_surface">#FFFFFFFF</color>
+    <color name="bg_card">#FFFFFFFF</color>
+    <color name="bg_card_elevated">#FFFFFFFF</color>
+    <color name="divider">#FFE6EDF3</color>
+
+    <color name="accent_neon">#FF3390EC</color>
+    <color name="accent_teal">#FF32A852</color>
+    <color name="accent_purple">#FF8A6DE9</color>
+    <color name="accent_pink">#FFE85D75</color>
+    <color name="accent_warning">#FFF39C12</color>
+
+    <color name="text_primary">#FF17212B</color>
+    <color name="text_secondary">#FF52677A</color>
+    <color name="text_tertiary">#FF8495A5</color>
+    <color name="surface_accent">#FFEAF4FF</color>
+    <color name="video_overlay_text">#FFFFFFFF</color>
+</resources>

@@ -1,0 +1,7 @@
+package com.example.nastok
+
+const val PLAYBACK_MIN_BUFFER_MS = 10_000
+const val PLAYBACK_MAX_BUFFER_MS = 30_000
+const val PLAYBACK_START_BUFFER_MS = 1_500
+const val PLAYBACK_AFTER_REBUFFER_MS = 350
+const val PLAYBACK_CACHE_MAX_BYTES = 512L * 1024L * 1024L
