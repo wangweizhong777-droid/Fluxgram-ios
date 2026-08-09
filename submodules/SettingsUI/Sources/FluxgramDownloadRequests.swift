@@ -3,6 +3,19 @@ import SwiftSignalKit
 import TelegramCore
 import AccountContext
 
+private func fluxgramDirectDocumentFileName(file: TelegramMediaFile, resource: CloudDocumentMediaResource) -> String {
+    if let fileName = resource.fileName?.trimmingCharacters(in: .whitespacesAndNewlines), !fileName.isEmpty {
+        return fileName
+    }
+    if let fileName = file.fileName?.trimmingCharacters(in: .whitespacesAndNewlines), !fileName.isEmpty {
+        return fileName
+    }
+    if file.isVideo || file.isInstantVideo {
+        return "telegram-video-\(resource.fileId).mp4"
+    }
+    return "telegram-document-\(resource.fileId).bin"
+}
+
 public func fluxgramDirectDocument(message: EngineMessage) -> FluxgramNASDirectDocument? {
     guard let file = message.media.compactMap({ $0 as? TelegramMediaFile }).first,
           let resource = file.resource as? CloudDocumentMediaResource,
@@ -14,7 +27,7 @@ public func fluxgramDirectDocument(message: EngineMessage) -> FluxgramNASDirectD
         documentId: String(resource.fileId),
         accessHash: String(resource.accessHash),
         fileReference: fileReference.base64EncodedString(),
-        fileName: resource.fileName ?? "telegram-document-\(resource.fileId).bin",
+        fileName: fluxgramDirectDocumentFileName(file: file, resource: resource),
         fileSize: resource.size ?? file.size ?? 0
     )
 }
