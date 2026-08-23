@@ -88,7 +88,6 @@ private func fluxgramDownloadNotificationText(previous: FluxgramNASDownloadsSnap
 }
 
 private enum FluxgramDownloadsEntry: ItemListNodeEntry {
-    case overview(Int, Int, Int)
     case pendingHeader
     case pendingSummary(Int)
     case pending(Int, FluxgramNASSubmission)
@@ -100,7 +99,7 @@ private enum FluxgramDownloadsEntry: ItemListNodeEntry {
 
     var section: ItemListSectionId {
         switch self {
-        case .overview, .pendingHeader, .pendingSummary, .pending:
+        case .pendingHeader, .pendingSummary, .pending:
             return FluxgramDownloadsSection.pending.rawValue
         case .activeHeader, .active:
             return FluxgramDownloadsSection.active.rawValue
@@ -113,12 +112,10 @@ private enum FluxgramDownloadsEntry: ItemListNodeEntry {
 
     var stableId: Int32 {
         switch self {
-        case .overview:
-            return 0
         case .pendingHeader:
-            return 1
+            return 0
         case .pendingSummary:
-            return 2
+            return 1
         case let .pending(index, submission):
             // Keep the row identity tied to the request, not its position. This
             // prevents incremental refreshes from rebuilding every pending card
@@ -126,7 +123,7 @@ private enum FluxgramDownloadsEntry: ItemListNodeEntry {
             let identifier = submission.stableKey.isEmpty ? "pending-\(index)" : submission.stableKey
             return fluxgramStableHash(identifier, namespace: 1_200_000_000)
         case .activeHeader:
-            return 3
+            return 2
         case let .active(index, job):
             return fluxgramDownloadStableId(job, namespace: 100_000, index: index)
         case .historyHeader:
@@ -141,14 +138,12 @@ private enum FluxgramDownloadsEntry: ItemListNodeEntry {
     static func <(lhs: FluxgramDownloadsEntry, rhs: FluxgramDownloadsEntry) -> Bool {
         func order(_ entry: FluxgramDownloadsEntry) -> (Int32, Int) {
             switch entry {
-            case .overview:
-                return (FluxgramDownloadsSection.pending.rawValue, 0)
             case .pendingHeader:
-                return (FluxgramDownloadsSection.pending.rawValue, 1)
+                return (FluxgramDownloadsSection.pending.rawValue, 0)
             case .pendingSummary:
-                return (FluxgramDownloadsSection.pending.rawValue, 2)
+                return (FluxgramDownloadsSection.pending.rawValue, 1)
             case let .pending(index, _):
-                return (FluxgramDownloadsSection.pending.rawValue, index + 3)
+                return (FluxgramDownloadsSection.pending.rawValue, index + 2)
             case .activeHeader:
                 return (FluxgramDownloadsSection.active.rawValue, 0)
             case let .active(index, _):
@@ -172,19 +167,6 @@ private enum FluxgramDownloadsEntry: ItemListNodeEntry {
     func item(presentationData: ItemListPresentationData, arguments: Any) -> ListViewItem {
         let arguments = arguments as! FluxgramDownloadsControllerArguments
         switch self {
-        case let .overview(active, pending, history):
-            let activeText = active == 0 ? "没有进行中的任务" : "进行中 \(active) 个"
-            let pendingText = pending == 0 ? "本地队列为空" : "待提交 \(pending) 个"
-            let historyText = history == 0 ? "暂无历史记录" : "历史记录 \(history) 条"
-            return ItemListInfoItem(
-                presentationData: presentationData,
-                systemStyle: fluxgramItemListSystemStyle,
-                title: "下载中心",
-                text: .plain("\(activeText) · \(pendingText) · \(historyText)"),
-                style: .blocks,
-                sectionId: self.section,
-                closeAction: nil
-            )
         case .pendingHeader:
             return ItemListSectionHeaderItem(presentationData: presentationData, text: "本地队列", sectionId: self.section)
         case let .pendingSummary(count):
@@ -276,7 +258,6 @@ private final class FluxgramDownloadsControllerArguments {
 
 private func fluxgramDownloadsEntries(state: FluxgramDownloadsControllerState) -> [FluxgramDownloadsEntry] {
     var entries: [FluxgramDownloadsEntry] = [
-        .overview(state.active.count, state.pending.count, state.history.count),
         .pendingHeader,
         .pendingSummary(state.pending.count)
     ]

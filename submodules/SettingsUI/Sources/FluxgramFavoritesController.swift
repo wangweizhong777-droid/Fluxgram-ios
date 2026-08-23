@@ -267,7 +267,7 @@ private enum FluxgramFavoriteGroupsEntry: ItemListNodeEntry {
         case let .filter(value):
             return ItemListSingleLineInputItem(presentationData: presentationData, systemStyle: .glass, title: NSAttributedString(string: "筛选", textColor: presentationData.theme.list.itemPrimaryTextColor), text: value, placeholder: "输入标签、来源或消息", type: .regular(capitalization: false, autocorrection: true), clearType: .always, sectionId: self.section, textUpdated: arguments.updateFilter, action: {})
         case let .header(count):
-            return ItemListSectionHeaderItem(presentationData: presentationData, text: count == 0 ? "媒体库为空" : "媒体库 · 标签组（\(count)）", sectionId: self.section)
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: count == 0 ? "暂无收藏" : "收藏会话（\(count)）", sectionId: self.section)
         case let .group(_, group, selected, isSelecting):
             let title = group.tags.isEmpty ? "未分类" : group.tags.joined(separator: "、")
             let sourceTitles = Array(Set(group.favorites.map(\.sourceTitle))).sorted()
@@ -423,7 +423,7 @@ public func fluxgramFavoritesController(context: AccountContext) -> ViewControll
                 }
             }
         )
-        let controllerState = ItemListControllerState(presentationData: ItemListPresentationData(presentationData), title: .text("收藏箱 · 媒体库"), leftNavigationButton: nil, rightNavigationButton: rightNavigationButton, backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back), animateChanges: true)
+        let controllerState = ItemListControllerState(presentationData: ItemListPresentationData(presentationData), title: .text("收藏箱"), leftNavigationButton: nil, rightNavigationButton: rightNavigationButton, backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back), animateChanges: true)
         var entries: [FluxgramFavoriteGroupsEntry] = [.filter(state.filter), .header(groups.count)]
         entries.append(contentsOf: groups.enumerated().map { .group($0.offset, $0.element, state.selectedGroupKeys.contains($0.element.key), state.isSelectingGroups) })
         let selectedGroups = groups.filter { state.selectedGroupKeys.contains($0.key) }
