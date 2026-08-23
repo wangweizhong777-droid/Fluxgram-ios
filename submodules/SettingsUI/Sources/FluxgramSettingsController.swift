@@ -119,6 +119,7 @@ private enum FluxgramSettingsSection: Int32 {
     case endpoints
     case credentials
     case actions
+    case about
 }
 
 private enum FluxgramSettingsEntry: ItemListNodeEntry {
@@ -131,9 +132,12 @@ private enum FluxgramSettingsEntry: ItemListNodeEntry {
     case accessToken(String)
     case notifyStatusToken(String)
     case testConnection
+    case connectionStatus(String)
     case downloads
     case notifyStatus
     case clear
+    case aboutHeader
+    case aboutInfo(String)
 
     var section: ItemListSectionId {
         switch self {
@@ -141,8 +145,10 @@ private enum FluxgramSettingsEntry: ItemListNodeEntry {
             return FluxgramSettingsSection.endpoints.rawValue
         case .credentialsHeader, .accessToken, .notifyStatusToken:
             return FluxgramSettingsSection.credentials.rawValue
-        case .testConnection, .downloads, .notifyStatus, .clear:
+        case .testConnection, .connectionStatus, .downloads, .notifyStatus, .clear:
             return FluxgramSettingsSection.actions.rawValue
+        case .aboutHeader, .aboutInfo:
+            return FluxgramSettingsSection.about.rawValue
         }
     }
 
@@ -166,12 +172,18 @@ private enum FluxgramSettingsEntry: ItemListNodeEntry {
             return 7
         case .testConnection:
             return 8
-        case .downloads:
+        case .connectionStatus:
             return 9
-        case .notifyStatus:
+        case .downloads:
             return 10
-        case .clear:
+        case .notifyStatus:
             return 11
+        case .clear:
+            return 12
+        case .aboutHeader:
+            return 13
+        case .aboutInfo:
+            return 14
         }
     }
 
@@ -304,6 +316,12 @@ private enum FluxgramSettingsEntry: ItemListNodeEntry {
                     arguments.testConnection()
                 }
             )
+        case let .connectionStatus(text):
+            return ItemListTextItem(
+                presentationData: presentationData,
+                text: .plain(text),
+                sectionId: self.section
+            )
         case .downloads:
             return ItemListDisclosureItem(
                 presentationData: presentationData,
@@ -347,6 +365,18 @@ private enum FluxgramSettingsEntry: ItemListNodeEntry {
                     arguments.clear()
                 }
             )
+        case .aboutHeader:
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: "关于 Fluxgram", sectionId: self.section)
+        case let .aboutInfo(text):
+            return ItemListInfoItem(
+                presentationData: presentationData,
+                systemStyle: fluxgramItemListSystemStyle,
+                title: "Fluxgram",
+                text: .plain(text),
+                style: .blocks,
+                sectionId: self.section,
+                closeAction: nil
+            )
         }
     }
 }
@@ -373,7 +403,7 @@ private final class FluxgramSettingsControllerArguments {
     }
 }
 
-private func fluxgramSettingsEntries(settings: FluxgramSettings) -> [FluxgramSettingsEntry] {
+private func fluxgramSettingsEntries(settings: FluxgramSettings, connectionStatus: String) -> [FluxgramSettingsEntry] {
     let usesPlainHTTP = settings.localBaseURL.lowercased().hasPrefix("http://") || settings.remoteBaseURL.lowercased().hasPrefix("http://")
     let securityInfo = usesPlainHTTP
         ? "NAS 下载、消息监听和后端地址集中在这里管理。访问令牌保存在 Keychain；外网地址建议使用 HTTPS，HTTP 仅适合可信内网。保存后可测试连接。"
@@ -388,10 +418,34 @@ private func fluxgramSettingsEntries(settings: FluxgramSettings) -> [FluxgramSet
         .accessToken(settings.accessToken),
         .notifyStatusToken(settings.notifyStatusToken),
         .testConnection,
+        .connectionStatus(connectionStatus),
         .downloads,
         .notifyStatus,
-        .clear
+        .clear,
+        .aboutHeader,
+        .aboutInfo(fluxgramAboutText())
     ]
+}
+
+private func fluxgramAboutText() -> String {
+    let info = Bundle.main.infoDictionary ?? [:]
+    let version = info["CFBundleShortVersionString"] as? String ?? "12.9.3"
+    let build = info["CFBundleVersion"] as? String ?? "开发版"
+    return "版本：\(version) (build \(build))\n本次更新：增加 NAS/TGAPP 连接状态提示、版本信息和更新说明，并完善收藏箱空状态。"
+}
+
+private func fluxgramConnectionStatusText(_ results: [FluxgramNASEndpointTestResult]) -> String {
+    guard !results.isEmpty else {
+        return "连接状态：未配置或无法测试。请检查地址和访问令牌。"
+    }
+    let available = results.filter { ($0.statusCode ?? 0) >= 200 && ($0.statusCode ?? 0) <= 299 }
+    if available.count == results.count {
+        return "连接状态：全部可用（已测试 \(results.count) 个服务）。"
+    } else if available.isEmpty {
+        return "连接状态：暂不可用。点击“测试 NAS 连接”查看详情。"
+    } else {
+        return "连接状态：部分可用（\(available.count)/\(results.count)）。点击“测试 NAS 连接”查看详情。"
+    }
 }
 
 private enum FluxgramSettingsValidationError: Error {
@@ -490,6 +544,7 @@ public func fluxgramSettingsController(context: AccountContext) -> ViewControlle
 
     let stateValue = Atomic(value: initialSettings)
     let statePromise = ValuePromise(initialSettings, ignoreRepeated: true)
+    let connectionStatusPromise = ValuePromise("连接状态：未测试。点击“测试 NAS 连接”开始检查。", ignoreRepeated: true)
     let updateState: ((FluxgramSettings) -> FluxgramSettings) -> Void = { f in
         statePromise.set(stateValue.modify { f($0) })
     }
@@ -509,9 +564,11 @@ public func fluxgramSettingsController(context: AccountContext) -> ViewControlle
     }
 
     let arguments = FluxgramSettingsControllerArguments(updateState: updateState, testConnection: {
+        connectionStatusPromise.set("连接状态：正在测试…")
         do {
             let settings = try validatedSettings(stateValue.with { $0 })
             FluxgramNASService.shared.testConnections(settings: settings) { results in
+                connectionStatusPromise.set(fluxgramConnectionStatusText(results))
                 guard !results.isEmpty else {
                     presentAlert("无法测试连接，请检查 TGAPP 地址和访问令牌。")
                     return
@@ -559,9 +616,9 @@ public func fluxgramSettingsController(context: AccountContext) -> ViewControlle
         )
     })
 
-    let signal = combineLatest(context.sharedContext.presentationData, statePromise.get())
+    let signal = combineLatest(context.sharedContext.presentationData, statePromise.get(), connectionStatusPromise.get())
     |> deliverOnMainQueue
-    |> map { presentationData, settings -> (ItemListControllerState, (ItemListNodeState, FluxgramSettingsControllerArguments)) in
+    |> map { presentationData, settings, connectionStatus -> (ItemListControllerState, (ItemListNodeState, FluxgramSettingsControllerArguments)) in
         let rightNavigationButton = ItemListNavigationButton(content: .icon(.done), style: .bold, enabled: true, action: {
             do {
                 let validated = try validatedSettings(stateValue.with { $0 })
@@ -586,7 +643,7 @@ public func fluxgramSettingsController(context: AccountContext) -> ViewControlle
         )
         let listState = ItemListNodeState(
             presentationData: ItemListPresentationData(presentationData),
-            entries: fluxgramSettingsEntries(settings: settings),
+            entries: fluxgramSettingsEntries(settings: settings, connectionStatus: connectionStatus),
             style: .blocks,
             emptyStateItem: nil,
             animateChanges: false

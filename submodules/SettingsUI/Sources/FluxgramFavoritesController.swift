@@ -228,13 +228,14 @@ private struct FluxgramFavoriteGroupsState: Equatable {
 private enum FluxgramFavoriteGroupsEntry: ItemListNodeEntry {
     case filter(String)
     case header(Int)
+    case empty(String)
     case group(Int, FluxgramFavoriteGroup, Bool, Bool)
     case downloadGroups(Int, Int)
 
     var section: ItemListSectionId {
         switch self {
         case .filter: return 0
-        case .header, .group: return 1
+        case .header, .empty, .group: return 1
         case .downloadGroups: return 2
         }
     }
@@ -243,6 +244,7 @@ private enum FluxgramFavoriteGroupsEntry: ItemListNodeEntry {
         switch self {
         case .filter: return 0
         case .header: return 1
+        case .empty: return 2
         case let .group(_, group, _, isSelecting):
             // The selection view changes the concrete ListViewItem class.
             // Use a separate ID so ItemList replaces the disclosure node with
@@ -289,6 +291,16 @@ private enum FluxgramFavoriteGroupsEntry: ItemListNodeEntry {
                 )
             }
             return ItemListDisclosureItem(presentationData: presentationData, systemStyle: .glass, title: title, label: "\(group.favorites.count) 条消息 · \(source)\n\(last)", labelStyle: .multilineDetailText, sectionId: self.section, style: .blocks, disclosureStyle: .arrow, action: { arguments.openGroup(group) })
+        case let .empty(text):
+            return ItemListInfoItem(
+                presentationData: presentationData,
+                systemStyle: .glass,
+                title: "收藏箱是空的",
+                text: .plain(text),
+                style: .blocks,
+                sectionId: self.section,
+                closeAction: nil
+            )
         case let .downloadGroups(groupCount, mediaCount):
             return ItemListActionItem(
                 presentationData: presentationData,
@@ -425,7 +437,14 @@ public func fluxgramFavoritesController(context: AccountContext) -> ViewControll
         )
         let controllerState = ItemListControllerState(presentationData: ItemListPresentationData(presentationData), title: .text("收藏箱"), leftNavigationButton: nil, rightNavigationButton: rightNavigationButton, backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back), animateChanges: true)
         var entries: [FluxgramFavoriteGroupsEntry] = [.filter(state.filter), .header(groups.count)]
-        entries.append(contentsOf: groups.enumerated().map { .group($0.offset, $0.element, state.selectedGroupKeys.contains($0.element.key), state.isSelectingGroups) })
+        if groups.isEmpty {
+            let emptyText = state.filter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? "在聊天中选择媒体或消息，点击“加入收藏箱”后，它们会按标签整理到这里。"
+                : "没有匹配“\(state.filter)”的收藏。可以换个标签、来源或关键词。"
+            entries.append(.empty(emptyText))
+        } else {
+            entries.append(contentsOf: groups.enumerated().map { .group($0.offset, $0.element, state.selectedGroupKeys.contains($0.element.key), state.isSelectingGroups) })
+        }
         let selectedGroups = groups.filter { state.selectedGroupKeys.contains($0.key) }
         if state.isSelectingGroups, !selectedGroups.isEmpty {
             let mediaCount = Set(selectedGroups.flatMap(\.favorites).map(\.identifier)).count
