@@ -1,3 +1,42 @@
+# Fluxgram iOS
+
+Fluxgram 是一个基于 Telegram iOS 的非官方客户端，重点提供 Telegram 媒体收藏、NAS 下载和短视频时间线能力。
+
+## Fluxgram 功能
+
+- **媒体工作台**：从首页查看 NAS 状态、下载队列、收藏数量和短视频来源。
+- **NAS 下载中心**：支持本地待提交队列、进行中任务、历史记录、失败重试和取消任务。
+- **收藏箱媒体库**：按标签聚合收藏消息，支持筛选、批量选择和下载到 NAS。
+- **短视频时间线**：从手动添加的频道或群组扫描视频，支持刷新、播放和下载。
+- **安全配置**：访问令牌保存在 iOS Keychain；外网地址推荐使用 HTTPS。
+
+## 本地开发
+
+项目基于 Telegram iOS 的 Bazel 构建系统。需要 macOS、Xcode、Swift 和递归 Git submodules。
+
+真机调试构建示例：
+
+```bash
+build-input/bazel-8.4.2-darwin-arm64 \
+  --bazelrc=Telegram/Telegram.xcodeproj/rules_xcodeproj/bazel/xcodeproj.bazelrc \
+  --bazelrc=.bazelrc \
+  build //Telegram:Telegram \
+  --config=rules_xcodeproj \
+  --config=macos \
+  --ios_multi_cpus=arm64 \
+  --watchos_cpus=arm64_32
+```
+
+Fluxgram 配置项包括：TGAPP 内网/外网地址、访问令牌、NAS 监听地址和监听令牌。令牌不会写入普通 UserDefaults。
+
+## 项目定位
+
+> Fluxgram = Telegram 的媒体收藏、下载和 NAS 管理中心。
+
+这是一个非官方 Telegram 客户端。使用者需要自行申请 Telegram API 凭据，并遵守 Telegram API、当地法律和隐私要求。
+
+---
+
 # Telegram iOS Source Code Compilation Guide
 
 We welcome all developers to use our API and source code to create applications on our platform.

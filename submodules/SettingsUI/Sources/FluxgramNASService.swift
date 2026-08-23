@@ -418,8 +418,22 @@ private enum FluxgramNASReadResult {
     case failure(String)
 }
 
-final class FluxgramNASService {
-    static let shared = FluxgramNASService()
+public struct FluxgramNASStatusSummary: Equatable {
+    public let activeCount: Int
+    public let pendingCount: Int
+    public let historyCount: Int
+    public let error: String?
+
+    public init(activeCount: Int, pendingCount: Int, historyCount: Int, error: String? = nil) {
+        self.activeCount = activeCount
+        self.pendingCount = pendingCount
+        self.historyCount = historyCount
+        self.error = error
+    }
+}
+
+public final class FluxgramNASService {
+    public static let shared = FluxgramNASService()
 
     private static let pendingQueueKey = "com.fluxgram.ios.pending-downloads.v1"
     private static let submittedKeysKey = "com.fluxgram.ios.submitted-download-keys.v1"
@@ -458,6 +472,33 @@ final class FluxgramNASService {
             self?.retryPendingDownloads(automatic: true)
         }
         monitor.start(queue: DispatchQueue(label: "com.fluxgram.ios.network-monitor", qos: .utility))
+    }
+
+    public func fetchStatusSummary(completion: @escaping (FluxgramNASStatusSummary) -> Void) {
+        let group = DispatchGroup()
+        var pendingCount = 0
+        var activeCount = 0
+        var historyCount = 0
+        var error: String?
+
+        group.enter()
+        self.fetchPendingDownloads { pending in
+            pendingCount = pending.count
+            group.leave()
+        }
+        group.enter()
+        self.fetchDownloads { snapshot, message in
+            if let snapshot {
+                activeCount = snapshot.active.count
+                historyCount = snapshot.history.count
+            } else {
+                error = message
+            }
+            group.leave()
+        }
+        group.notify(queue: .main) {
+            completion(FluxgramNASStatusSummary(activeCount: activeCount, pendingCount: pendingCount, historyCount: historyCount, error: error))
+        }
     }
 
     deinit {

@@ -123,7 +123,7 @@ private enum FluxgramSettingsSection: Int32 {
 
 private enum FluxgramSettingsEntry: ItemListNodeEntry {
     case endpointsHeader
-    case endpointsInfo
+    case endpointsInfo(String)
     case localEndpoint(String)
     case remoteEndpoint(String)
     case notifyStatusEndpoint(String)
@@ -184,12 +184,12 @@ private enum FluxgramSettingsEntry: ItemListNodeEntry {
         switch self {
         case .endpointsHeader:
             return ItemListSectionHeaderItem(presentationData: presentationData, text: "TGAPP 地址", sectionId: self.section)
-        case .endpointsInfo:
+        case let .endpointsInfo(text):
             return ItemListInfoItem(
                 presentationData: presentationData,
                 systemStyle: fluxgramItemListSystemStyle,
                 title: "Fluxgram 控制台",
-                text: .plain("NAS 下载、消息监听和后端地址集中在这里管理。内网优先，外网回退，保存后可测试连接。"),
+                text: .plain(text),
                 style: .blocks,
                 sectionId: self.section,
                 closeAction: nil
@@ -374,9 +374,14 @@ private final class FluxgramSettingsControllerArguments {
 }
 
 private func fluxgramSettingsEntries(settings: FluxgramSettings) -> [FluxgramSettingsEntry] {
+    let localIsHTTP = settings.localBaseURL.lowercased().hasPrefix("http://")
+    let remoteIsHTTP = settings.remoteBaseURL.lowercased().hasPrefix("http://")
+    let securityHint = localIsHTTP || remoteIsHTTP
+        ? "NAS 下载、消息监听和后端地址集中在这里管理。内网优先，外网回退。外网地址建议使用 HTTPS，HTTP 仅建议用于可信内网。"
+        : "NAS 下载、消息监听和后端地址集中在这里管理。内网优先，外网回退。保存后可测试连接。"
     return [
         .endpointsHeader,
-        .endpointsInfo,
+        .endpointsInfo(securityHint),
         .localEndpoint(settings.localBaseURL),
         .remoteEndpoint(settings.remoteBaseURL),
         .notifyStatusEndpoint(settings.notifyStatusURL),
