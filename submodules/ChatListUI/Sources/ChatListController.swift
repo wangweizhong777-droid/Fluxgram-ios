@@ -293,7 +293,7 @@ public class ChatListControllerImpl: TelegramBaseController, ChatListController 
         switch self.location {
         case let .chatList(groupId):
             if groupId == .root {
-                title = self.presentationData.strings.DialogList_Title
+                title = "Fluxgram"
             } else {
                 title = self.presentationData.strings.ChatList_ArchivedChatsTitle
             }
@@ -355,6 +355,13 @@ public class ChatListControllerImpl: TelegramBaseController, ChatListController 
                         content: .icon(imageName: "Chat List/ComposeIcon"),
                         pressed: { [weak self] _ in
                             self?.composePressed()
+                        }
+                    )))
+
+                    self.primaryContext?.searchButton = AnyComponentWithIdentity(id: "search", component: AnyComponent(NavigationButtonComponent(
+                        content: .icon(imageName: "Chat List/SearchIcon"),
+                        pressed: { [weak self] _ in
+                            self?.activateSearch()
                         }
                     )))
                     
@@ -6780,11 +6787,15 @@ private final class ChatListLocationContext {
     
     var leftButton: AnyComponentWithIdentity<NavigationButtonComponentEnvironment>?
     var rightButton: AnyComponentWithIdentity<NavigationButtonComponentEnvironment>?
+    var searchButton: AnyComponentWithIdentity<NavigationButtonComponentEnvironment>?
     var proxyButton: AnyComponentWithIdentity<NavigationButtonComponentEnvironment>?
     var storyButton: AnyComponentWithIdentity<NavigationButtonComponentEnvironment>?
     
     var rightButtons: [AnyComponentWithIdentity<NavigationButtonComponentEnvironment>] {
         var result: [AnyComponentWithIdentity<NavigationButtonComponentEnvironment>] = []
+        if let searchButton = self.searchButton {
+            result.append(searchButton)
+        }
         if let rightButton = self.rightButton {
             result.append(rightButton)
         }

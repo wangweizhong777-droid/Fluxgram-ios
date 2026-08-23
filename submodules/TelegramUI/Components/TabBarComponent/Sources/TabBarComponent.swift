@@ -405,6 +405,7 @@ public final class TabBarComponent: Component {
     
     public final class View: UIView, UIGestureRecognizerDelegate {
         private let backgroundContainer: GlassBackgroundContainerView
+        private let selectedBackgroundView: UIView
         private let liquidLensView: LiquidLensView
         private let contextGestureContainerView: ContextControllerSourceView
         
@@ -430,6 +431,7 @@ public final class TabBarComponent: Component {
         
         public override init(frame: CGRect) {
             self.backgroundContainer = GlassBackgroundContainerView()
+            self.selectedBackgroundView = UIView()
             self.liquidLensView = LiquidLensView(kind: .externalContainer)
             
             self.contextGestureContainerView = ContextControllerSourceView()
@@ -443,7 +445,14 @@ public final class TabBarComponent: Component {
             }
             
             self.addSubview(self.backgroundContainer)
+            self.backgroundContainer.contentView.addSubview(self.selectedBackgroundView)
             self.backgroundContainer.contentView.addSubview(self.contextGestureContainerView)
+            self.selectedBackgroundView.isUserInteractionEnabled = false
+            self.backgroundContainer.layer.shadowColor = UIColor(rgb: 0x0f172a).cgColor
+            self.backgroundContainer.layer.shadowOpacity = 0.14
+            self.backgroundContainer.layer.shadowRadius = 18.0
+            self.backgroundContainer.layer.shadowOffset = CGSize(width: 0.0, height: 8.0)
+            self.backgroundContainer.layer.masksToBounds = false
             
             self.contextGestureContainerView.addSubview(self.liquidLensView)
             let tabSelectionRecognizer = TabSelectionRecognizer(target: self, action: #selector(self.onTabSelectionGesture(_:)))
@@ -652,8 +661,8 @@ public final class TabBarComponent: Component {
             let alphaTransition: ComponentTransition = transition.animation.isImmediate ? .immediate : .easeInOut(duration: 0.25)
             let _ = alphaTransition
 
-            let innerInset: CGFloat = 4.0
-            let availableSize = CGSize(width: min(500.0, availableSize.width), height: availableSize.height)
+            let innerInset: CGFloat = 6.0
+            let availableSize = CGSize(width: min(430.0, availableSize.width), height: availableSize.height)
             
             let previousComponent = self.component
             self.component = component
@@ -661,7 +670,7 @@ public final class TabBarComponent: Component {
             
             self.overrideUserInterfaceStyle = component.theme.overallDarkAppearance ? .dark : .light
 
-            let barHeight: CGFloat = 56.0 + innerInset * 2.0
+            let barHeight: CGFloat = 60.0 + innerInset * 2.0
 
             var availableItemsWidth: CGFloat = availableSize.width - innerInset * 2.0
             if component.search != nil {
@@ -695,7 +704,7 @@ public final class TabBarComponent: Component {
                         isUnconstrained: true
                     )),
                     environment: {},
-                    containerSize: CGSize(width: 200.0, height: 56.0)
+                containerSize: CGSize(width: 200.0, height: 60.0)
                 )
                 
                 unboundItemWidths.append(itemSize.width)
@@ -724,7 +733,7 @@ public final class TabBarComponent: Component {
                 totalItemsWidth = total
             }
 
-            let itemHeight: CGFloat = 56.0
+            let itemHeight: CGFloat = 60.0
             let contentWidth: CGFloat = innerInset * 2.0 + totalItemsWidth
             let tabsSize = CGSize(width: min(availableSize.width, contentWidth), height: itemHeight + innerInset * 2.0)
 
@@ -881,9 +890,18 @@ public final class TabBarComponent: Component {
                 lensSize = CGSize(width: 48.0, height: 48.0)
                 lensSelection = (0.0, 48.0)
             }
+
+            self.selectedBackgroundView.backgroundColor = component.theme.overallDarkAppearance
+                ? UIColor(white: 1.0, alpha: 0.12)
+                : UIColor(rgb: 0xeaf1ff)
             
             lensSelection.x = max(0.0, min(lensSelection.x, lensSize.width - lensSelection.width))
             
+            let selectedBackgroundFrame = CGRect(x: lensSelection.x + 1.0, y: innerInset, width: max(1.0, lensSelection.width - 2.0), height: itemHeight)
+            transition.setFrame(view: self.selectedBackgroundView, frame: selectedBackgroundFrame)
+            self.selectedBackgroundView.layer.cornerRadius = selectedBackgroundFrame.height * 0.5
+            self.selectedBackgroundView.alpha = isLensCollapsed ? 0.0 : 1.0
+
             self.liquidLensView.update(size: lensSize, selectionOrigin: CGPoint(x: lensSelection.x, y: 0.0), selectionSize: CGSize(width: lensSelection.width, height: lensSize.height), inset: 4.0, isDark: component.theme.overallDarkAppearance, isLifted: self.selectionGestureState != nil && component.isLiftedStateEnabled, isCollapsed: isLensCollapsed, transition: transition.withUserData(LiquidLensView.TransitionInfo(disableAnimationWorkarounds: !component.isLiftedStateEnabled)))
 
             var size = tabsSize
@@ -940,6 +958,8 @@ public final class TabBarComponent: Component {
             }
 
             transition.setFrame(view: self.backgroundContainer, frame: CGRect(origin: CGPoint(), size: size))
+            self.backgroundContainer.layer.cornerRadius = size.height * 0.5
+            self.backgroundContainer.layer.shadowPath = UIBezierPath(roundedRect: CGRect(origin: CGPoint(), size: size), cornerRadius: size.height * 0.5).cgPath
             self.backgroundContainer.update(size: size, isDark: component.theme.overallDarkAppearance, transition: transition)
 
             return size
@@ -1172,7 +1192,7 @@ private final class ItemComponent: Component {
                         transition: iconTransition,
                         component: AnyComponent(Image(
                             image: component.isSelected ? tabBarItem.selectedImage : tabBarItem.image,
-                            tintColor: nil,
+                            tintColor: iconTintColor,
                             contentMode: .center
                         )),
                         environment: {},
@@ -1279,7 +1299,7 @@ private final class ItemComponent: Component {
             let titleSize = self.title.update(
                 transition: .immediate,
                 component: AnyComponent(MultilineTextComponent(
-                    text: .plain(NSAttributedString(string: title, font: Font.semibold(10.0), textColor: (component.isSelected && component.tintSelectedItem) ? component.theme.rootController.tabBar.selectedTextColor : component.theme.rootController.tabBar.textColor))
+                    text: .plain(NSAttributedString(string: title, font: Font.semibold(11.0), textColor: (component.isSelected && component.tintSelectedItem) ? component.theme.rootController.tabBar.selectedTextColor : component.theme.rootController.tabBar.textColor))
                 )),
                 environment: {},
                 containerSize: CGSize(width: availableSize.width, height: 100.0)

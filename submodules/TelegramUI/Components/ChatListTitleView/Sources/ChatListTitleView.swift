@@ -12,7 +12,7 @@ import TelegramCore
 import ComponentDisplayAdapters
 import AccountContext
 
-private let titleFont = Font.with(size: 17.0, design: .regular, weight: .semibold, traits: [.monospacedNumbers])
+private let titleFont = Font.with(size: 30.0, design: .regular, weight: .bold, traits: [.monospacedNumbers])
 
 public struct NetworkStatusTitle: Equatable {
     public enum Status: Equatable {

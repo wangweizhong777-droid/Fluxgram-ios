@@ -6,6 +6,11 @@ import TelegramPresentationData
 import ItemListUI
 import AccountContext
 
+// Settings are information-dense, so use the compact opaque card treatment.
+// This keeps labels and input fields readable against the dark grouped list
+// background while leaving glass for navigation-level surfaces.
+private let fluxgramItemListSystemStyle: ItemListSystemStyle = .legacy
+
 struct FluxgramSettings: Equatable, Codable {
     var localBaseURL: String
     var remoteBaseURL: String
@@ -118,6 +123,7 @@ private enum FluxgramSettingsSection: Int32 {
 
 private enum FluxgramSettingsEntry: ItemListNodeEntry {
     case endpointsHeader
+    case endpointsInfo
     case localEndpoint(String)
     case remoteEndpoint(String)
     case notifyStatusEndpoint(String)
@@ -131,7 +137,7 @@ private enum FluxgramSettingsEntry: ItemListNodeEntry {
 
     var section: ItemListSectionId {
         switch self {
-        case .endpointsHeader, .localEndpoint, .remoteEndpoint, .notifyStatusEndpoint:
+        case .endpointsHeader, .endpointsInfo, .localEndpoint, .remoteEndpoint, .notifyStatusEndpoint:
             return FluxgramSettingsSection.endpoints.rawValue
         case .credentialsHeader, .accessToken, .notifyStatusToken:
             return FluxgramSettingsSection.credentials.rawValue
@@ -144,26 +150,28 @@ private enum FluxgramSettingsEntry: ItemListNodeEntry {
         switch self {
         case .endpointsHeader:
             return 0
-        case .localEndpoint:
+        case .endpointsInfo:
             return 1
-        case .remoteEndpoint:
+        case .localEndpoint:
             return 2
-        case .notifyStatusEndpoint:
+        case .remoteEndpoint:
             return 3
-        case .credentialsHeader:
+        case .notifyStatusEndpoint:
             return 4
-        case .accessToken:
+        case .credentialsHeader:
             return 5
-        case .notifyStatusToken:
+        case .accessToken:
             return 6
-        case .testConnection:
+        case .notifyStatusToken:
             return 7
-        case .downloads:
+        case .testConnection:
             return 8
-        case .notifyStatus:
+        case .downloads:
             return 9
-        case .clear:
+        case .notifyStatus:
             return 10
+        case .clear:
+            return 11
         }
     }
 
@@ -176,10 +184,20 @@ private enum FluxgramSettingsEntry: ItemListNodeEntry {
         switch self {
         case .endpointsHeader:
             return ItemListSectionHeaderItem(presentationData: presentationData, text: "TGAPP 地址", sectionId: self.section)
+        case .endpointsInfo:
+            return ItemListInfoItem(
+                presentationData: presentationData,
+                systemStyle: fluxgramItemListSystemStyle,
+                title: "Fluxgram 控制台",
+                text: .plain("NAS 下载、消息监听和后端地址集中在这里管理。内网优先，外网回退，保存后可测试连接。"),
+                style: .blocks,
+                sectionId: self.section,
+                closeAction: nil
+            )
         case let .localEndpoint(value):
             return ItemListSingleLineInputItem(
                 presentationData: presentationData,
-                systemStyle: .glass,
+                systemStyle: fluxgramItemListSystemStyle,
                 title: NSAttributedString(string: "内网地址", textColor: presentationData.theme.list.itemPrimaryTextColor),
                 text: value,
                 placeholder: "http://192.168.1.2:3000",
@@ -198,7 +216,7 @@ private enum FluxgramSettingsEntry: ItemListNodeEntry {
         case let .remoteEndpoint(value):
             return ItemListSingleLineInputItem(
                 presentationData: presentationData,
-                systemStyle: .glass,
+                systemStyle: fluxgramItemListSystemStyle,
                 title: NSAttributedString(string: "外网地址", textColor: presentationData.theme.list.itemPrimaryTextColor),
                 text: value,
                 placeholder: "https://example.com",
@@ -217,7 +235,7 @@ private enum FluxgramSettingsEntry: ItemListNodeEntry {
         case let .notifyStatusEndpoint(value):
             return ItemListSingleLineInputItem(
                 presentationData: presentationData,
-                systemStyle: .glass,
+                systemStyle: fluxgramItemListSystemStyle,
                 title: NSAttributedString(string: "NAS 监听地址", textColor: presentationData.theme.list.itemPrimaryTextColor),
                 text: value,
                 placeholder: "http://192.168.1.2:30178",
@@ -238,7 +256,7 @@ private enum FluxgramSettingsEntry: ItemListNodeEntry {
         case let .accessToken(value):
             return ItemListSingleLineInputItem(
                 presentationData: presentationData,
-                systemStyle: .glass,
+                systemStyle: fluxgramItemListSystemStyle,
                 title: NSAttributedString(),
                 text: value,
                 placeholder: "访问令牌",
@@ -257,7 +275,7 @@ private enum FluxgramSettingsEntry: ItemListNodeEntry {
         case let .notifyStatusToken(value):
             return ItemListSingleLineInputItem(
                 presentationData: presentationData,
-                systemStyle: .glass,
+                systemStyle: fluxgramItemListSystemStyle,
                 title: NSAttributedString(string: "监听令牌", textColor: presentationData.theme.list.itemPrimaryTextColor),
                 text: value,
                 placeholder: "tg-notify 的 NOTIFY_STATUS_TOKEN",
@@ -276,7 +294,7 @@ private enum FluxgramSettingsEntry: ItemListNodeEntry {
         case .testConnection:
             return ItemListActionItem(
                 presentationData: presentationData,
-                systemStyle: .glass,
+                systemStyle: fluxgramItemListSystemStyle,
                 title: "测试 NAS 连接",
                 kind: .generic,
                 alignment: .natural,
@@ -289,7 +307,8 @@ private enum FluxgramSettingsEntry: ItemListNodeEntry {
         case .downloads:
             return ItemListDisclosureItem(
                 presentationData: presentationData,
-                systemStyle: .glass,
+                systemStyle: fluxgramItemListSystemStyle,
+                icon: PresentationResourcesSettings.download,
                 title: "NAS 下载",
                 label: "队列与历史记录",
                 labelStyle: .text,
@@ -303,7 +322,8 @@ private enum FluxgramSettingsEntry: ItemListNodeEntry {
         case .notifyStatus:
             return ItemListDisclosureItem(
                 presentationData: presentationData,
-                systemStyle: .glass,
+                systemStyle: fluxgramItemListSystemStyle,
+                icon: PresentationResourcesSettings.notifications,
                 title: "NAS 监听状态",
                 label: "Telegram 与 Bark",
                 labelStyle: .text,
@@ -317,7 +337,7 @@ private enum FluxgramSettingsEntry: ItemListNodeEntry {
         case .clear:
             return ItemListActionItem(
                 presentationData: presentationData,
-                systemStyle: .glass,
+                systemStyle: fluxgramItemListSystemStyle,
                 title: "清除配置",
                 kind: .destructive,
                 alignment: .center,
@@ -356,6 +376,7 @@ private final class FluxgramSettingsControllerArguments {
 private func fluxgramSettingsEntries(settings: FluxgramSettings) -> [FluxgramSettingsEntry] {
     return [
         .endpointsHeader,
+        .endpointsInfo,
         .localEndpoint(settings.localBaseURL),
         .remoteEndpoint(settings.remoteBaseURL),
         .notifyStatusEndpoint(settings.notifyStatusURL),

@@ -864,6 +864,20 @@ public final class MediaPlayerScrubbingNode: ASDisplayNode {
             self.animating = false
         })
     }
+
+    public func setExternalScrubbingTimestamp(_ timestamp: Double?) {
+        if let timestamp, let statusValue = self.statusValue, statusValue.duration > 0.0 {
+            let clampedTimestamp = max(0.0, min(timestamp, statusValue.duration))
+            self.scrubbingTimestampValue = clampedTimestamp
+            self._scrubbingTimestamp.set(.single(clampedTimestamp))
+            self._scrubbingPosition.set(.single(clampedTimestamp / statusValue.duration))
+        } else {
+            self.scrubbingTimestampValue = nil
+            self._scrubbingTimestamp.set(.single(nil))
+            self._scrubbingPosition.set(.single(nil))
+        }
+        self.updateProgressAnimations()
+    }
     
     private func updateProgress(animator: ControlledTransitionAnimator? = nil) {
         let bounds = self.bounds

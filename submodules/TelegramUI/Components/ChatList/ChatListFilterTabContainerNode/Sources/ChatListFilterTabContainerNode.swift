@@ -301,11 +301,11 @@ private final class ItemNode: ASDisplayNode {
         self.shortTitleActiveNode.visibility = title.enableAnimations
         
         if themeUpdated || titleUpdated {
-            self.titleNode.attributedText = title.attributedString(font: Font.medium(14.0), textColor: presentationData.theme.chat.inputPanel.panelControlColor)
-            self.titleActiveNode.attributedText = title.attributedString(font: Font.medium(14.0), textColor: presentationData.theme.chat.inputPanel.panelControlColor)
+            self.titleNode.attributedText = title.attributedString(font: Font.semibold(15.0), textColor: presentationData.theme.list.itemSecondaryTextColor)
+            self.titleActiveNode.attributedText = title.attributedString(font: Font.semibold(15.0), textColor: presentationData.theme.list.itemCheckColors.fillColor)
             
-            self.shortTitleNode.attributedText = shortTitle.attributedString(font: Font.medium(14.0), textColor: presentationData.theme.chat.inputPanel.panelControlColor)
-            self.shortTitleActiveNode.attributedText = shortTitle.attributedString(font: Font.medium(14.0), textColor: presentationData.theme.chat.inputPanel.panelControlColor)
+            self.shortTitleNode.attributedText = shortTitle.attributedString(font: Font.semibold(15.0), textColor: presentationData.theme.list.itemSecondaryTextColor)
+            self.shortTitleActiveNode.attributedText = shortTitle.attributedString(font: Font.semibold(15.0), textColor: presentationData.theme.list.itemCheckColors.fillColor)
         }
         
         if unreadCount != 0 {
@@ -698,9 +698,14 @@ public final class ChatListFilterTabContainerNode: ASDisplayNode {
         let isFirstTime = self.currentParams == nil
         let transition: ContainedViewLayoutTransition = isFirstTime ? .immediate : proposedTransition
         
-        let backgroundSize = CGSize(width: containerSize.width - (16.0 - containerSideInset) * 2.0, height: 44.0)
+        let backgroundSize = CGSize(width: containerSize.width - (20.0 - containerSideInset) * 2.0, height: 48.0)
         
-        transition.updateFrame(view: self.backgroundContainerView, frame: CGRect(origin: CGPoint(x: containerSideInset + 16.0, y: 0.0), size: backgroundSize))
+        transition.updateFrame(view: self.backgroundContainerView, frame: CGRect(origin: CGPoint(x: containerSideInset + 20.0, y: 0.0), size: backgroundSize))
+        self.backgroundContainerView.layer.shadowColor = UIColor(rgb: 0x0f172a).cgColor
+        self.backgroundContainerView.layer.shadowOpacity = 0.12
+        self.backgroundContainerView.layer.shadowRadius = 12.0
+        self.backgroundContainerView.layer.shadowOffset = CGSize(width: 0.0, height: 4.0)
+        self.backgroundContainerView.layer.shadowPath = UIBezierPath(roundedRect: CGRect(origin: CGPoint(), size: backgroundSize), cornerRadius: backgroundSize.height * 0.5).cgPath
         self.backgroundContainerView.update(size: backgroundSize, isDark: presentationData.theme.overallDarkAppearance, transition: ComponentTransition(transition))
         
         transition.updateFrame(view: self.backgroundView, frame: CGRect(origin: CGPoint(), size: backgroundSize))
@@ -716,7 +721,12 @@ public final class ChatListFilterTabContainerNode: ASDisplayNode {
         let previousContentWidth = self.scrollNode.view.contentSize.width
         
         if self.currentParams?.presentationData.theme !== presentationData.theme {
-            self.selectedBackgroundNode.image = generateStretchableFilledCircleImage(diameter: 36.0, color: presentationData.theme.chatList.itemHighlightedBackgroundColor)
+            self.selectedBackgroundNode.image = generateStretchableFilledCircleImage(
+                diameter: 38.0,
+                color: presentationData.theme.overallDarkAppearance
+                    ? UIColor(white: 1.0, alpha: 0.12)
+                    : UIColor(rgb: 0xeaf1ff)
+            )
         }
         
         if isReordering {
@@ -876,9 +886,9 @@ public final class ChatListFilterTabContainerNode: ASDisplayNode {
             }
         }
         
-        let minSpacing: CGFloat = 26.0
+        let minSpacing: CGFloat = 28.0
         
-        let resolvedSideInset: CGFloat = 14.0
+        let resolvedSideInset: CGFloat = 16.0
         var leftOffset: CGFloat = resolvedSideInset
         
         var longTitlesWidth: CGFloat = resolvedSideInset
@@ -953,7 +963,7 @@ public final class ChatListFilterTabContainerNode: ASDisplayNode {
         if let selectedFrame = selectedFrame {
             let wasAdded = self.selectedBackgroundNode.isHidden
             self.selectedBackgroundNode.isHidden = false
-            let selectedBackgroundFrame = CGRect(origin: CGPoint(x: selectedFrame.minX - 10.0, y: selectedFrame.minY - floor((36.0 - selectedFrame.height) * 0.5)), size: CGSize(width: selectedFrame.width + 10.0 * 2.0, height: 36.0))
+            let selectedBackgroundFrame = CGRect(origin: CGPoint(x: selectedFrame.minX - 12.0, y: selectedFrame.minY - floor((38.0 - selectedFrame.height) * 0.5)), size: CGSize(width: selectedFrame.width + 12.0 * 2.0, height: 38.0))
             if wasAdded {
                 self.selectedBackgroundNode.frame = selectedBackgroundFrame
             } else {

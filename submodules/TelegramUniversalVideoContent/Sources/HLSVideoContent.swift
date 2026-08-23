@@ -152,14 +152,6 @@ public final class HLSVideoContent: UniversalVideoContent {
             return nil
         }
         let sortedQualities = qualitySet.qualityFiles.sorted(by: { $0.key < $1.key })
-        for (quality, qualityFile) in sortedQualities {
-            if quality >= 600 {
-                guard let playlistFile = qualitySet.playlistFiles[quality] else {
-                    return nil
-                }
-                return (playlistFile, qualityFile)
-            }
-        }
         if let (quality, qualityFile) = sortedQualities.first {
             guard let playlistFile = qualitySet.playlistFiles[quality] else {
                 return nil

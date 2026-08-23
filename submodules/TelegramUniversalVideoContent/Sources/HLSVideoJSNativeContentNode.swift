@@ -312,7 +312,7 @@ final class HLSJSServerSource: SharedHLSServer.Source {
                         fetchDisposable.dispose()
                         dataDisposable.dispose()
                         fileContext.cancelFullRangeFetches()
-                        
+
                         TempBox.shared.dispose(completeFile)
                         TempBox.shared.dispose(metaFile)
                     }
@@ -1266,14 +1266,8 @@ final class HLSVideoJSNativeContentNode: ASDisplayNode, UniversalVideoContentNod
                 if !self.playerAvailableLevels.isEmpty {
                     var selectedLevelIndex: Int?
                     
-                    if let qualityFiles = HLSQualitySet(baseFile: self.fileReference, codecConfiguration: self.codecConfiguration)?.qualityFiles.values, let maxQualityFile = qualityFiles.max(by: { lhs, rhs in
-                        if let lhsDimensions = lhs.media.dimensions, let rhsDimensions = rhs.media.dimensions {
-                            return lhsDimensions.width < rhsDimensions.width
-                        } else {
-                            return lhs.media.fileId.id < rhs.media.fileId.id
-                        }
-                    }), let dimensions = maxQualityFile.media.dimensions {
-                        if self.postbox.mediaBox.completedResourcePath(maxQualityFile.media.resource) != nil {
+                    if let minimizedQualityFile = HLSVideoContent.minimizedHLSQuality(file: self.fileReference, codecConfiguration: self.codecConfiguration)?.file {
+                        if let dimensions = minimizedQualityFile.media.dimensions {
                             for (index, level) in self.playerAvailableLevels {
                                 if level.height == Int(dimensions.height) {
                                     selectedLevelIndex = index
@@ -1282,23 +1276,16 @@ final class HLSVideoJSNativeContentNode: ASDisplayNode, UniversalVideoContentNod
                             }
                         }
                     }
-                    
                     if selectedLevelIndex == nil {
-                        if let minimizedQualityFile = HLSVideoContent.minimizedHLSQuality(file: self.fileReference, codecConfiguration: self.codecConfiguration)?.file {
-                            if let dimensions = minimizedQualityFile.media.dimensions {
-                                for (index, level) in self.playerAvailableLevels {
-                                    if level.height == Int(dimensions.height) {
-                                        selectedLevelIndex = index
-                                        break
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    if selectedLevelIndex == nil {
-                        selectedLevelIndex = self.playerAvailableLevels.sorted(by: { $0.value.height > $1.value.height }).first?.key
+                        selectedLevelIndex = self.playerAvailableLevels.sorted(by: { $0.value.height < $1.value.height }).first?.key
                     }
                     if let selectedLevelIndex {
+                        if self.requestedLevelIndex == nil, let selectedLevel = self.playerAvailableLevels[selectedLevelIndex] {
+                            self.requestedLevelIndex = selectedLevelIndex
+                            self.preferredVideoQuality = .quality(min(selectedLevel.width, selectedLevel.height))
+                            self.updateVideoQualityState()
+                        }
+
                         var effectiveSelectedLevelIndex = selectedLevelIndex
                         if !self.enableSound {
                             effectiveSelectedLevelIndex = self.resolveCurrentLevelIndex() ?? -1

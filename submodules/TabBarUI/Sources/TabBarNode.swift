@@ -669,27 +669,11 @@ class TabBarNode: ASDisplayNode, ASGestureRecognizerDelegate {
         }
         
         if self.tabBarNodeContainers.count != 0 {
-            var tabBarNodeContainers = self.tabBarNodeContainers
+            let tabBarNodeContainers = self.tabBarNodeContainers
             var width = size.width
-            
-            var callsTabBarNodeContainer: TabBarNodeContainer?
-            if tabBarNodeContainers.count == 4 {
-                callsTabBarNodeContainer = tabBarNodeContainers[1]
-            }
             
             if additionalSideInsets.right > 0.0 {
                 width -= additionalSideInsets.right
-                
-                if let callsTabBarNodeContainer = callsTabBarNodeContainer {
-                    tabBarNodeContainers.remove(at: 1)
-                    transition.updateAlpha(node: callsTabBarNodeContainer.imageNode, alpha: 0.0)
-                    callsTabBarNodeContainer.imageNode.isUserInteractionEnabled = false
-                }
-            } else {
-                if let callsTabBarNodeContainer = callsTabBarNodeContainer {
-                    transition.updateAlpha(node: callsTabBarNodeContainer.imageNode, alpha: 1.0)
-                    callsTabBarNodeContainer.imageNode.isUserInteractionEnabled = true
-                }
             }
             
             let distanceBetweenNodes = width / CGFloat(tabBarNodeContainers.count)

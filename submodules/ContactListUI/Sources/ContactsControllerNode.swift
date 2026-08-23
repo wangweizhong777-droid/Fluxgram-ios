@@ -320,25 +320,28 @@ final class ContactsControllerNode: ASDisplayNode, ASGestureRecognizerDelegate {
             rightButtons = []
         } else {
             title = self.presentationData.strings.Contacts_Title
-            leftButton = AnyComponentWithIdentity(id: "sort", component: AnyComponent(NavigationButtonComponent(
-                content: .text(title: self.presentationData.strings.Contacts_Sort, isBold: false),
-                pressed: { [weak self] sourceView in
-                    guard let self else {
-                        return
+            leftButton = nil
+            rightButtons = [
+                AnyComponentWithIdentity(id: "sort", component: AnyComponent(NavigationButtonComponent(
+                    content: .icon(imageName: "Peer Info/SortIcon"),
+                    pressed: { [weak self] sourceView in
+                        guard let self else {
+                            return
+                        }
+
+                        self.controller?.presentSortMenu(sourceView: sourceView, gesture: nil)
                     }
-                    
-                    self.controller?.presentSortMenu(sourceView: sourceView, gesture: nil)
-                }
-            )))
-            rightButtons = [AnyComponentWithIdentity(id: "add", component: AnyComponent(NavigationButtonComponent(
-                content: .icon(imageName: "Chat List/AddIcon"),
-                pressed: { [weak self] _ in
-                    guard let self else {
-                        return
+                ))),
+                AnyComponentWithIdentity(id: "add", component: AnyComponent(NavigationButtonComponent(
+                    content: .icon(imageName: "Chat List/AddIcon"),
+                    pressed: { [weak self] _ in
+                        guard let self else {
+                            return
+                        }
+                        self.controller?.addPressed()
                     }
-                    self.controller?.addPressed()
-                }
-            )))]
+                )))
+            ]
         }
         
         let primaryContent = ChatListHeaderComponent.Content(

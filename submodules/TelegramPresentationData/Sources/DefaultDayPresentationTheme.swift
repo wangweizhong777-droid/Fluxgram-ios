@@ -416,9 +416,9 @@ public func makeDefaultDayPresentationTheme(extendingThemeReference: Presentatio
         secondaryTextColor: UIColor(rgb: 0x787878),
         controlColor: UIColor(rgb: 0x7e8791),
         accentTextColor: defaultDayAccentColor,
-        blurredBackgroundColor: UIColor(rgb: 0xf2f2f2, alpha: 0.9),
-        opaqueBackgroundColor: UIColor(rgb: 0xf7f7f7).mixedWith(.white, alpha: 0.14),
-        separatorColor: UIColor(rgb: 0xc8c7cc),
+        blurredBackgroundColor: UIColor(rgb: 0xffffff, alpha: 0.96),
+        opaqueBackgroundColor: UIColor(rgb: 0xffffff),
+        separatorColor: UIColor(rgb: 0xe5e7eb),
         badgeBackgroundColor: UIColor(rgb: 0xff3b30),
         badgeStrokeColor: UIColor(rgb: 0xff3b30),
         badgeTextColor: UIColor(rgb: 0xffffff),
@@ -431,11 +431,11 @@ public func makeDefaultDayPresentationTheme(extendingThemeReference: Presentatio
     )
 
     let rootTabBar = PresentationThemeRootTabBar(
-        backgroundColor: rootNavigationBar.blurredBackgroundColor,
-        separatorColor: UIColor(rgb: 0xb2b2b2),
-        iconColor: UIColor(rgb: 0x959595),
+        backgroundColor: UIColor(rgb: 0xffffff),
+        separatorColor: UIColor(rgb: 0xe5e7eb),
+        iconColor: UIColor(rgb: 0x1f2937),
         selectedIconColor: defaultDayAccentColor,
-        textColor: UIColor(rgb: 0x000000, alpha: 0.8),
+        textColor: UIColor(rgb: 0x1f2937),
         selectedTextColor: defaultDayAccentColor,
         badgeBackgroundColor: UIColor(rgb: 0xff3b30),
         badgeStrokeColor: UIColor(rgb: 0xff3b30),

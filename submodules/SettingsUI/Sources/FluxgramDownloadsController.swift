@@ -8,6 +8,12 @@ import AccountContext
 import TelegramCore
 import UndoUI
 
+// Fluxgram pages use the opaque, compact list treatment so dark mode keeps a
+// clear separation between the page background and each grouped card. The
+// glass treatment is reserved for navigation-level surfaces where translucency
+// is useful, not for dense download rows.
+private let fluxgramItemListSystemStyle: ItemListSystemStyle = .legacy
+
 private struct FluxgramDownloadsControllerState: Equatable {
     var active: [FluxgramNASDownloadJob]
     var history: [FluxgramNASDownloadJob]
@@ -167,7 +173,7 @@ private enum FluxgramDownloadsEntry: ItemListNodeEntry {
             let label = count == 0 ? "没有待提交请求" : "\(count) 个请求等待提交"
             return ItemListDisclosureItem(
                 presentationData: presentationData,
-                systemStyle: .glass,
+                systemStyle: fluxgramItemListSystemStyle,
                 title: "待提交下载",
                 label: label,
                 labelStyle: .text,
@@ -191,7 +197,7 @@ private enum FluxgramDownloadsEntry: ItemListNodeEntry {
             details.append("点击重试")
             return ItemListDisclosureItem(
                 presentationData: presentationData,
-                systemStyle: .glass,
+                systemStyle: fluxgramItemListSystemStyle,
                 title: "消息 \(submission.messageId)",
                 label: details.joined(separator: "\n"),
                 labelStyle: .multilineDetailText,
@@ -207,7 +213,7 @@ private enum FluxgramDownloadsEntry: ItemListNodeEntry {
         case let .active(_, job):
             return ItemListDisclosureItem(
                 presentationData: presentationData,
-                systemStyle: .glass,
+                systemStyle: fluxgramItemListSystemStyle,
                 title: job.title,
                 label: job.detail,
                 labelStyle: .multilineDetailText,
@@ -221,7 +227,7 @@ private enum FluxgramDownloadsEntry: ItemListNodeEntry {
         case let .history(_, job):
             return ItemListDisclosureItem(
                 presentationData: presentationData,
-                systemStyle: .glass,
+                systemStyle: fluxgramItemListSystemStyle,
                 title: job.title,
                 label: job.detail,
                 labelStyle: .multilineDetailText,

@@ -322,7 +322,7 @@ func settingsItems(data: PeerInfoScreenData?, context: AccountContext, presentat
     items[.fluxgram]!.append(PeerInfoScreenDisclosureItem(id: 1, text: "NAS 下载", icon: PresentationResourcesSettings.download, action: {
         interaction.openSettings(.fluxgramDownloads)
     }))
-    items[.fluxgram]!.append(PeerInfoScreenDisclosureItem(id: 2, text: "收藏箱", icon: UIImage(bundleImageName: "Chat/Context Menu/Save"), action: {
+    items[.fluxgram]!.append(PeerInfoScreenDisclosureItem(id: 2, text: "收藏箱", icon: PresentationResourcesSettings.favorites, action: {
         interaction.openSettings(.fluxgramFavorites)
     }))
     items[.fluxgram]!.append(PeerInfoScreenDisclosureItem(id: 3, text: "短视频流", icon: PresentationResourcesSettings.videosBlue, action: {

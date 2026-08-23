@@ -162,6 +162,7 @@ public struct PresentationResourcesSettings {
     public static let clock = renderSettingsIcon(name: "Item List/Icons/Clock", backgroundColors: [colorPurple])
     public static let photosLightBlue = renderSettingsIcon(name: "Item List/Icons/Photo", backgroundColors: [colorLightBlue])
     public static let videosBlue = renderSettingsIcon(name: "Item List/Icons/Video", backgroundColors: [colorBlue])
+    public static let favorites = renderSettingsIcon(name: "Chat/Context Menu/Save", backgroundColors: [colorOrange])
     
     public static let block = renderSettingsIcon(name: "Item List/Icons/Block", backgroundColors: [colorRed])
     public static let activeSessions = renderSettingsIcon(name: "Item List/Icons/Language", backgroundColors: [colorBlue])

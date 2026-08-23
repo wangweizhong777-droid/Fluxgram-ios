@@ -8,6 +8,10 @@ import ComponentFlow
 import AlertComponent
 import AlertInputFieldComponent
 
+// Keep dense download controls opaque in dark mode. Translucent glass cards
+// reduce contrast when several rows are grouped together.
+private let fluxgramItemListSystemStyle: ItemListSystemStyle = .legacy
+
 private struct FluxgramDownloadControllerState: Equatable {
     var downloadSubdir: String
     var note: String
@@ -112,7 +116,7 @@ private enum FluxgramDownloadEntry: ItemListNodeEntry {
         case let .selectAll(allSelected):
             return ItemListActionItem(
                 presentationData: presentationData,
-                systemStyle: .glass,
+                systemStyle: fluxgramItemListSystemStyle,
                 title: allSelected ? "取消全选" : "全选",
                 kind: .generic,
                 alignment: .natural,
@@ -131,7 +135,7 @@ private enum FluxgramDownloadEntry: ItemListNodeEntry {
             }
             return ItemListCheckboxItem(
                 presentationData: presentationData,
-                systemStyle: .glass,
+                systemStyle: fluxgramItemListSystemStyle,
                 title: download.directDocument?.fileName ?? "图片消息 \(download.messageId)",
                 subtitle: subtitle,
                 style: .right,
@@ -147,7 +151,7 @@ private enum FluxgramDownloadEntry: ItemListNodeEntry {
         case let .destination(value):
             return ItemListSingleLineInputItem(
                 presentationData: presentationData,
-                systemStyle: .glass,
+                systemStyle: fluxgramItemListSystemStyle,
                 title: NSAttributedString(string: "子文件夹", textColor: presentationData.theme.list.itemPrimaryTextColor),
                 text: value,
                 placeholder: "NAS 根目录",
@@ -166,7 +170,7 @@ private enum FluxgramDownloadEntry: ItemListNodeEntry {
         case .chooseDestination:
             return ItemListDisclosureItem(
                 presentationData: presentationData,
-                systemStyle: .glass,
+                systemStyle: fluxgramItemListSystemStyle,
                 title: "从 NAS 选择",
                 label: "加载文件夹",
                 labelStyle: .text,
@@ -180,7 +184,7 @@ private enum FluxgramDownloadEntry: ItemListNodeEntry {
         case .downloadStatus:
             return ItemListDisclosureItem(
                 presentationData: presentationData,
-                systemStyle: .glass,
+                systemStyle: fluxgramItemListSystemStyle,
                 title: "查看 NAS 下载",
                 label: "队列与历史记录",
                 labelStyle: .text,
@@ -196,7 +200,7 @@ private enum FluxgramDownloadEntry: ItemListNodeEntry {
         case let .note(value):
             return ItemListSingleLineInputItem(
                 presentationData: presentationData,
-                systemStyle: .glass,
+                systemStyle: fluxgramItemListSystemStyle,
                 title: NSAttributedString(string: "备注", textColor: presentationData.theme.list.itemPrimaryTextColor),
                 text: value,
                 placeholder: "可选备注",
@@ -215,7 +219,7 @@ private enum FluxgramDownloadEntry: ItemListNodeEntry {
         case let .tags(value):
             return ItemListSingleLineInputItem(
                 presentationData: presentationData,
-                systemStyle: .glass,
+                systemStyle: fluxgramItemListSystemStyle,
                 title: NSAttributedString(string: "标签", textColor: presentationData.theme.list.itemPrimaryTextColor),
                 text: value,
                 placeholder: "可选，用逗号分隔",
@@ -234,7 +238,7 @@ private enum FluxgramDownloadEntry: ItemListNodeEntry {
         case let .inbox(value):
             return ItemListSwitchItem(
                 presentationData: presentationData,
-                systemStyle: .glass,
+                systemStyle: fluxgramItemListSystemStyle,
                 title: "加入收件箱",
                 value: value,
                 sectionId: self.section,

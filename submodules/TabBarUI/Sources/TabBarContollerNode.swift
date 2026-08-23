@@ -198,9 +198,9 @@ final class TabBarControllerNode: ASDisplayNode {
             panelsBottomInset = inputHeight + 8.0
         }
         if panelsBottomInset == 0.0 {
-            panelsBottomInset = 8.0
+            panelsBottomInset = 14.0
         } else {
-            panelsBottomInset = max(panelsBottomInset, 8.0)
+            panelsBottomInset = max(panelsBottomInset, 14.0)
         }
 
         var tabBarBottomInset: CGFloat = panelsBottomInset
@@ -265,23 +265,10 @@ final class TabBarControllerNode: ASDisplayNode {
                         }
                     )
                 },
-                search: self.currentController?.tabBarSearchState.flatMap { tabBarSearchState in
-                    return TabBarComponent.Search(
-                        isActive: tabBarSearchState.isActive,
-                        activate: { [weak self] in
-                            guard let self else {
-                                return
-                            }
-                            self.activateSearch()
-                        },
-                        deactivate: { [weak self] in
-                            guard let self else {
-                                return
-                            }
-                            self.deactivateSearch()
-                        }
-                    )
-                },
+                // The root tab bar is intentionally limited to the four app tabs.
+                // Search remains available from the individual screens' navigation UI,
+                // but is no longer shown as a fifth button on the right side here.
+                search: nil,
                 selectedId: selectedId,
                 outerInsets: UIEdgeInsets(top: 0.0, left: sideInset, bottom: tabBarBottomInset, right: sideInset)
             )),

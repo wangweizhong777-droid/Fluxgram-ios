@@ -196,6 +196,16 @@ final class ChatVideoGalleryItemScrubberView: UIView {
     func animateTo(_ timestamp: Double) {
         self.scrubberNode.animateTo(timestamp)
     }
+
+    func setExternalScrubbingTimestamp(_ timestamp: Double?, duration: Double?) {
+        self.scrubberNode.setExternalScrubbingTimestamp(timestamp)
+        if let timestamp, let duration, duration > 0.0 {
+            self.updateScrubbingHandlePosition(CGFloat(timestamp / duration))
+        } else {
+            self.updateScrubbingVisual(nil)
+            self.updateScrubbingHandlePosition(0.0)
+        }
+    }
     
     func setStatusSignal(_ status: Signal<MediaPlayerStatus, NoError>?) {
         let mappedStatus: Signal<MediaPlayerStatus, NoError>?

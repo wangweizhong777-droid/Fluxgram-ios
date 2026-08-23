@@ -968,7 +968,6 @@ final class UniversalVideoGalleryItemNode: ZoomableContentGalleryItemNode, UIGes
 
     private var seekPanInitialTimestamp: Double?
     private var seekPanDuration: Double?
-    private var seekPanLastTimestamp: Double?
     private var seekPanShouldResumePlayback = false
     private weak var seekPanGesture: UIPanGestureRecognizer?
     
@@ -2147,14 +2146,13 @@ final class UniversalVideoGalleryItemNode: ZoomableContentGalleryItemNode, UIGes
             }
             self.seekPanInitialTimestamp = status.timestamp
             self.seekPanDuration = status.duration
-            self.seekPanLastTimestamp = status.timestamp
             self.seekPanShouldResumePlayback = status.status == .playing
             self.isInteractingPromise.set(true)
             self.updateControlsVisibility(true)
             if self.seekPanShouldResumePlayback {
                 videoNode.pause()
             }
-        case .changed, .ended:
+        case .changed:
             guard let initialTimestamp = self.seekPanInitialTimestamp,
                   let duration = self.seekPanDuration else {
                 return
@@ -2162,26 +2160,34 @@ final class UniversalVideoGalleryItemNode: ZoomableContentGalleryItemNode, UIGes
             let width = max(self.scrollNode.bounds.width, 1.0)
             let translation = recognizer.translation(in: self.scrollNode.view).x
             let timestamp = min(max(initialTimestamp + Double(translation / width) * duration, 0.0), duration)
-            if recognizer.state == .ended || self.seekPanLastTimestamp == nil || abs(timestamp - self.seekPanLastTimestamp!) >= 0.15 {
-                self.seekPanLastTimestamp = timestamp
-                videoNode.seek(timestamp)
+            self.scrubberView?.setExternalScrubbingTimestamp(timestamp, duration: duration)
+        case .ended:
+            guard let initialTimestamp = self.seekPanInitialTimestamp,
+                  let duration = self.seekPanDuration else {
+                self.finishSeekPan(videoNode: videoNode, seekTimestamp: nil)
+                return
             }
-            if recognizer.state == .ended {
-                self.finishSeekPan(videoNode: videoNode)
-            }
+            let width = max(self.scrollNode.bounds.width, 1.0)
+            let translation = recognizer.translation(in: self.scrollNode.view).x
+            let timestamp = min(max(initialTimestamp + Double(translation / width) * duration, 0.0), duration)
+            self.scrubberView?.setExternalScrubbingTimestamp(timestamp, duration: duration)
+            self.finishSeekPan(videoNode: videoNode, seekTimestamp: timestamp)
         case .cancelled, .failed:
-            self.finishSeekPan(videoNode: videoNode)
+            self.finishSeekPan(videoNode: videoNode, seekTimestamp: nil)
         default:
             break
         }
     }
 
-    private func finishSeekPan(videoNode: UniversalVideoNode) {
+    private func finishSeekPan(videoNode: UniversalVideoNode, seekTimestamp: Double?) {
         let shouldResumePlayback = self.seekPanShouldResumePlayback
         self.seekPanInitialTimestamp = nil
         self.seekPanDuration = nil
-        self.seekPanLastTimestamp = nil
         self.seekPanShouldResumePlayback = false
+        if let seekTimestamp {
+            videoNode.seek(seekTimestamp)
+        }
+        self.scrubberView?.setExternalScrubbingTimestamp(nil, duration: nil)
         self.isInteractingPromise.set(false)
         if shouldResumePlayback {
             videoNode.play()

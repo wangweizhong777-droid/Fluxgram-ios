@@ -241,7 +241,7 @@ public final class ChatMessageSelectionInputPanelNode: ChatInputPanelNode {
         self.downloadButton.accessibilityLabel = "下载到 NAS"
 
         self.favoriteButton = GlassButtonView()
-        self.favoriteButton.icon = "Chat/Context Menu/Save"
+        self.favoriteButton.icon = "Item List/Icons/SavedMessages"
         self.favoriteButton.isHidden = true
         self.favoriteButton.isAccessibilityElement = true
         self.favoriteButton.accessibilityLabel = "加入收藏箱"
