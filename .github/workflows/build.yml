@@ -2,16 +2,28 @@ name: CI
 
 on:
   push:
-    branches: [ master ]
+    branches: [ main, codex/public-fluxgram ]
 
   workflow_dispatch:
 
 jobs:
+  validate:
+    runs-on: macos-13
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+          fetch-depth: '0'
+
+      - name: Check whitespace
+        run: git diff --check
+
   build:
     runs-on: macos-13
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           submodules: 'recursive'
           fetch-depth: '0'

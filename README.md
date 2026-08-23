@@ -1,3 +1,20 @@
+# Fluxgram iOS
+
+Fluxgram 是一个基于 Telegram iOS 的非官方客户端，重点围绕媒体收藏、NAS 下载和短视频入口做定制。
+
+## Fluxgram 功能
+
+- 媒体收藏入口
+- NAS 下载与历史记录
+- 短视频来源管理
+- Fluxgram 设置与安全配置
+
+## 安全说明
+
+访问令牌会保存在 iOS Keychain。外网地址建议优先使用 HTTPS；如果必须使用 HTTP，请只在可信内网里调试。
+
+---
+
 # Telegram iOS Source Code Compilation Guide
 
 We welcome all developers to use our API and source code to create applications on our platform.
