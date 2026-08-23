@@ -94,6 +94,7 @@ private enum FluxgramDownloadsEntry: ItemListNodeEntry {
     case activeHeader
     case active(Int, FluxgramNASDownloadJob)
     case historyHeader
+    case retryFailed(Int)
     case history(Int, FluxgramNASDownloadJob)
     case status(String)
 
@@ -103,7 +104,7 @@ private enum FluxgramDownloadsEntry: ItemListNodeEntry {
             return FluxgramDownloadsSection.pending.rawValue
         case .activeHeader, .active:
             return FluxgramDownloadsSection.active.rawValue
-        case .historyHeader, .history:
+        case .historyHeader, .retryFailed, .history:
             return FluxgramDownloadsSection.history.rawValue
         case .status:
             return FluxgramDownloadsSection.status.rawValue
@@ -128,6 +129,8 @@ private enum FluxgramDownloadsEntry: ItemListNodeEntry {
             return fluxgramDownloadStableId(job, namespace: 100_000, index: index)
         case .historyHeader:
             return 10_000
+        case .retryFailed:
+            return 10_001
         case let .history(index, job):
             return fluxgramDownloadStableId(job, namespace: 600_000_000, index: index)
         case .status:
@@ -150,8 +153,10 @@ private enum FluxgramDownloadsEntry: ItemListNodeEntry {
                 return (FluxgramDownloadsSection.active.rawValue, index + 1)
             case .historyHeader:
                 return (FluxgramDownloadsSection.history.rawValue, 0)
+            case .retryFailed:
+                return (FluxgramDownloadsSection.history.rawValue, 1)
             case let .history(index, _):
-                return (FluxgramDownloadsSection.history.rawValue, index + 1)
+                return (FluxgramDownloadsSection.history.rawValue, index + 2)
             case .status:
                 return (FluxgramDownloadsSection.status.rawValue, 0)
             }
@@ -240,6 +245,19 @@ private enum FluxgramDownloadsEntry: ItemListNodeEntry {
             )
         case .historyHeader:
             return ItemListSectionHeaderItem(presentationData: presentationData, text: "最近记录", sectionId: self.section)
+        case let .retryFailed(count):
+            return ItemListActionItem(
+                presentationData: presentationData,
+                systemStyle: fluxgramItemListSystemStyle,
+                title: "重试失败任务（\(count)）",
+                kind: .generic,
+                alignment: .natural,
+                sectionId: self.section,
+                style: .blocks,
+                action: {
+                    arguments.retryFailed()
+                }
+            )
         case let .status(message):
             return ItemListTextItem(presentationData: presentationData, text: .plain(message), sectionId: self.section)
         }
@@ -248,10 +266,12 @@ private enum FluxgramDownloadsEntry: ItemListNodeEntry {
 
 private final class FluxgramDownloadsControllerArguments {
     let retryPending: (FluxgramNASSubmission?) -> Void
+    let retryFailed: () -> Void
     let showJob: (FluxgramNASDownloadJob, Bool) -> Void
 
-    init(retryPending: @escaping (FluxgramNASSubmission?) -> Void, showJob: @escaping (FluxgramNASDownloadJob, Bool) -> Void) {
+    init(retryPending: @escaping (FluxgramNASSubmission?) -> Void, retryFailed: @escaping () -> Void, showJob: @escaping (FluxgramNASDownloadJob, Bool) -> Void) {
         self.retryPending = retryPending
+        self.retryFailed = retryFailed
         self.showJob = showJob
     }
 }
@@ -265,6 +285,10 @@ private func fluxgramDownloadsEntries(state: FluxgramDownloadsControllerState) -
     entries.append(.activeHeader)
     entries.append(contentsOf: state.active.enumerated().map { .active($0.offset, $0.element) })
     entries.append(.historyHeader)
+    let failedCount = state.history.filter { ["failed", "error"].contains($0.status.lowercased()) }.count
+    if failedCount > 0 {
+        entries.append(.retryFailed(failedCount))
+    }
     entries.append(contentsOf: state.history.enumerated().map { .history($0.offset, $0.element) })
     if state.active.isEmpty && state.history.isEmpty {
         entries.append(.status(state.error.isEmpty ? "暂时没有 NAS 下载任务。" : state.error))
@@ -404,6 +428,13 @@ public func fluxgramDownloadsController(context: AccountContext) -> ViewControll
             }
             presentAlert(message)
             refresh(true)
+        }
+    }, retryFailed: {
+        service.retryProblemDownloads { success, message in
+            presentAlert(message)
+            if success {
+                refresh(true)
+            }
         }
     }, showJob: { job, isActive in
         let presentationData = context.sharedContext.currentPresentationData.with { $0 }
