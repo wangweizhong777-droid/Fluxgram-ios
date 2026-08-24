@@ -184,6 +184,7 @@ public final class ChatMessageSelectionInputPanelNode: ChatInputPanelNode {
     private let shareButton: GlassButtonView
     private let downloadButton: GlassButtonView
     private let favoriteButton: GlassButtonView
+    private let analyzeButton: GlassButtonView
     private let tagButton: GlassButtonView
     private let tagEditButton: GlassButtonView
     
@@ -245,6 +246,12 @@ public final class ChatMessageSelectionInputPanelNode: ChatInputPanelNode {
         self.favoriteButton.isHidden = true
         self.favoriteButton.isAccessibilityElement = true
         self.favoriteButton.accessibilityLabel = "加入收藏箱"
+
+        self.analyzeButton = GlassButtonView()
+        self.analyzeButton.icon = "Chat/Context Menu/Rate"
+        self.analyzeButton.isHidden = true
+        self.analyzeButton.isAccessibilityElement = true
+        self.analyzeButton.accessibilityLabel = "AI 分析"
         
         self.tagButton = GlassButtonView()
         self.tagButton.icon = "Chat/Input/Accessory Panels/TagIcon"
@@ -266,6 +273,7 @@ public final class ChatMessageSelectionInputPanelNode: ChatInputPanelNode {
         self.view.addSubview(self.shareButton)
         self.view.addSubview(self.downloadButton)
         self.view.addSubview(self.favoriteButton)
+        self.view.addSubview(self.analyzeButton)
         self.view.addSubview(self.tagButton)
         self.view.addSubview(self.tagEditButton)
         
@@ -280,6 +288,7 @@ public final class ChatMessageSelectionInputPanelNode: ChatInputPanelNode {
         self.shareButton.button.addTarget(self, action: #selector(self.shareButtonPressed), for: .touchUpInside)
         self.downloadButton.button.addTarget(self, action: #selector(self.downloadButtonPressed), for: .touchUpInside)
         self.favoriteButton.button.addTarget(self, action: #selector(self.favoriteButtonPressed), for: .touchUpInside)
+        self.analyzeButton.button.addTarget(self, action: #selector(self.analyzeButtonPressed), for: .touchUpInside)
         self.tagButton.button.addTarget(self, action: #selector(self.tagButtonPressed), for: .touchUpInside)
         self.tagEditButton.button.addTarget(self, action: #selector(self.tagButtonPressed), for: .touchUpInside)
     }
@@ -296,6 +305,8 @@ public final class ChatMessageSelectionInputPanelNode: ChatInputPanelNode {
         self.downloadButton.isHidden = true
         self.favoriteButton.isEnabled = false
         self.favoriteButton.isHidden = true
+        self.analyzeButton.isEnabled = false
+        self.analyzeButton.isHidden = true
         self.downloadAvailabilityDisposable.set(nil)
         
         if self.selectedMessages.isEmpty {
@@ -376,6 +387,10 @@ public final class ChatMessageSelectionInputPanelNode: ChatInputPanelNode {
 
     @objc private func favoriteButtonPressed() {
         self.interfaceInteraction?.favoriteSelectedMessages?()
+    }
+
+    @objc private func analyzeButtonPressed() {
+        self.interfaceInteraction?.analyzeSelectedMessages?()
     }
     
     @objc private func tagButtonPressed() {
@@ -530,6 +545,8 @@ public final class ChatMessageSelectionInputPanelNode: ChatInputPanelNode {
             self.downloadButton.isHidden = !self.downloadButton.isEnabled || self.interfaceInteraction?.downloadSelectedMessages == nil
             self.favoriteButton.isEnabled = !self.selectedMessages.isEmpty
             self.favoriteButton.isHidden = !self.favoriteButton.isEnabled || self.interfaceInteraction?.favoriteSelectedMessages == nil
+            self.analyzeButton.isEnabled = self.selectedMessages.count == 1
+            self.analyzeButton.isHidden = self.selectedMessages.count != 1 || self.interfaceInteraction?.analyzeSelectedMessages == nil
             
             if self.peerMedia {
                 self.deleteButton.isHidden = !self.deleteButton.isEnabled
@@ -561,6 +578,8 @@ public final class ChatMessageSelectionInputPanelNode: ChatInputPanelNode {
             self.downloadButton.isHidden = true
             self.favoriteButton.isEnabled = false
             self.favoriteButton.isHidden = true
+            self.analyzeButton.isEnabled = false
+            self.analyzeButton.isHidden = true
             self.tagButton.isHidden = true
             self.tagEditButton.isHidden = true
             self.tagButton.isHidden = true
@@ -594,6 +613,7 @@ public final class ChatMessageSelectionInputPanelNode: ChatInputPanelNode {
                     self.deleteButton,
                     tagButton,
                     self.favoriteButton,
+                    self.analyzeButton,
                     self.downloadButton,
                     self.shareButton,
                     self.forwardButton
@@ -602,6 +622,7 @@ public final class ChatMessageSelectionInputPanelNode: ChatInputPanelNode {
                 buttons = [
                     self.deleteButton,
                     self.favoriteButton,
+                    self.analyzeButton,
                     self.downloadButton,
                     self.shareButton,
                     self.forwardButton
@@ -614,6 +635,7 @@ public final class ChatMessageSelectionInputPanelNode: ChatInputPanelNode {
                     self.reportButton,
                     tagButton,
                     self.favoriteButton,
+                    self.analyzeButton,
                     self.downloadButton,
                     self.shareButton,
                     self.forwardButton
@@ -623,6 +645,7 @@ public final class ChatMessageSelectionInputPanelNode: ChatInputPanelNode {
                     self.deleteButton,
                     self.reportButton,
                     self.favoriteButton,
+                    self.analyzeButton,
                     self.downloadButton,
                     self.shareButton,
                     self.forwardButton

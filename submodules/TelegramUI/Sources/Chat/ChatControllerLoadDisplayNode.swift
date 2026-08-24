@@ -2200,6 +2200,88 @@ extension ChatControllerImpl {
                     strongSelf.present(standardTextAlertController(theme: AlertControllerTheme(presentationData: presentationData), title: nil, text: text, actions: [TextAlertAction(type: .defaultAction, title: presentationData.strings.Common_OK, action: {})]), in: .window(.root))
                 }), in: .window(.root))
             })
+        }, analyzeSelectedMessages: { [weak self] in
+            guard let strongSelf = self,
+                  let selectedIds = strongSelf.presentationInterfaceState.interfaceState.selectionState?.selectedIds,
+                  selectedIds.count == 1,
+                  let messageId = selectedIds.first else {
+                return
+            }
+
+            let _ = (strongSelf.context.engine.data.get(TelegramEngine.EngineData.Item.Messages.Message(id: messageId))
+            |> deliverOnMainQueue).startStandalone(next: { [weak self] message in
+                guard let strongSelf = self, let message else {
+                    return
+                }
+
+                let rawText = message.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                let previewText: String
+                if rawText.isEmpty {
+                    previewText = message.media.isEmpty ? "这条消息没有可分析的文字内容。" : "这条消息主要包含媒体或文件内容。"
+                } else if rawText.count > 180 {
+                    let index = rawText.index(rawText.startIndex, offsetBy: 180)
+                    previewText = "\(rawText[..<index])…"
+                } else {
+                    previewText = rawText
+                }
+
+                var contentKinds: [String] = []
+                var hasVideo = false
+                for media in message.media {
+                    if media is TelegramMediaImage {
+                        contentKinds.append("图片")
+                    } else if let file = media as? TelegramMediaFile {
+                        if file.isVideo {
+                            hasVideo = true
+                            contentKinds.append("视频")
+                        } else if file.mimeType.hasPrefix("audio/") {
+                            contentKinds.append("音频")
+                        } else {
+                            contentKinds.append("文件")
+                        }
+                    } else if media is TelegramMediaWebpage {
+                        contentKinds.append("链接")
+                    } else {
+                        contentKinds.append("媒体")
+                    }
+                }
+
+                let lowercasedText = rawText.lowercased()
+                let suggestion: String
+                if hasVideo || lowercasedText.contains("视频") {
+                    suggestion = "视频素材"
+                } else if lowercasedText.contains("项目") || lowercasedText.contains("设计") || lowercasedText.contains("代码") {
+                    suggestion = "项目灵感"
+                } else if lowercasedText.contains("http") || lowercasedText.contains("www") || contentKinds.contains("链接") {
+                    suggestion = "稍后看"
+                } else {
+                    suggestion = "工作资料"
+                }
+
+                var lines: [String] = [
+                    "仅分析你刚刚选中的 1 条消息。不会自动扫描整个会话，也不会在后台运行。",
+                    "",
+                    "内容摘要：\(previewText)"
+                ]
+                if !contentKinds.isEmpty {
+                    lines.append("识别内容：\(Array(Set(contentKinds)).joined(separator: "、"))")
+                }
+                lines.append("建议分类：\(suggestion)")
+                lines.append("")
+                lines.append("当前是手动分析预览；接入真实 AI 后，仍会保持点击后才发送分析请求。")
+
+                strongSelf.present(
+                    standardTextAlertController(
+                        theme: AlertControllerTheme(presentationData: strongSelf.presentationData),
+                        title: "AI 分析（手动）",
+                        text: lines.joined(separator: "\n"),
+                        actions: [
+                            TextAlertAction(type: .defaultAction, title: "知道了", action: {})
+                        ]
+                    ),
+                    in: .window(.root)
+                )
+            })
         }, updateTextInputStateAndMode: { [weak self] f in
             if let strongSelf = self {
                 strongSelf.updateChatPresentationInterfaceState(animated: true, interactive: true, { state in
