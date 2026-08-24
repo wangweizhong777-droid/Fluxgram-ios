@@ -2258,29 +2258,49 @@ extension ChatControllerImpl {
                     suggestion = "工作资料"
                 }
 
-                var lines: [String] = [
-                    "仅分析你刚刚选中的 1 条消息。不会自动扫描整个会话，也不会在后台运行。",
-                    "",
-                    "内容摘要：\(previewText)"
-                ]
+                var aiInput = "消息文字摘要：\(previewText)"
                 if !contentKinds.isEmpty {
-                    lines.append("识别内容：\(Array(Set(contentKinds)).joined(separator: "、"))")
+                    aiInput += "\n已知内容类型：\(Array(Set(contentKinds)).joined(separator: "、"))"
                 }
-                lines.append("建议分类：\(suggestion)")
-                lines.append("")
-                lines.append("当前是手动分析预览；接入真实 AI 后，仍会保持点击后才发送分析请求。")
 
-                strongSelf.present(
-                    standardTextAlertController(
-                        theme: AlertControllerTheme(presentationData: strongSelf.presentationData),
-                        title: "AI 分析（手动）",
-                        text: lines.joined(separator: "\n"),
-                        actions: [
-                            TextAlertAction(type: .defaultAction, title: "知道了", action: {})
+                FluxgramAIService.shared.analyze(text: aiInput) { [weak strongSelf] result in
+                    guard let strongSelf else {
+                        return
+                    }
+
+                    let lines: [String]
+                    let title: String
+                    switch result {
+                    case let .success(aiResult):
+                        title = "AI 分析（\(aiResult.model)）"
+                        lines = [
+                            "仅分析你刚刚选中的 1 条消息。不会自动扫描整个会话，也不会在后台运行。",
+                            "",
+                            "内容摘要：\(previewText)",
+                            "",
+                            aiResult.text
                         ]
-                    ),
-                    in: .window(.root)
-                )
+                    case let .failure(error):
+                        title = "AI 分析失败"
+                        lines = [
+                            error.localizedDescription,
+                            "",
+                            "本地预览建议分类：\(suggestion)"
+                        ]
+                    }
+
+                    strongSelf.present(
+                        standardTextAlertController(
+                            theme: AlertControllerTheme(presentationData: strongSelf.presentationData),
+                            title: title,
+                            text: lines.joined(separator: "\n"),
+                            actions: [
+                                TextAlertAction(type: .defaultAction, title: "知道了", action: {})
+                            ]
+                        ),
+                        in: .window(.root)
+                    )
+                }
             })
         }, updateTextInputStateAndMode: { [weak self] f in
             if let strongSelf = self {

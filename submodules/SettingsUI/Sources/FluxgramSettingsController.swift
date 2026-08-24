@@ -17,13 +17,19 @@ struct FluxgramSettings: Equatable, Codable {
     var accessToken: String
     var notifyStatusURL: String
     var notifyStatusToken: String
+    var aiBaseURL: String
+    var aiAccessToken: String
+    var aiModel: String
 
-    init(localBaseURL: String, remoteBaseURL: String, accessToken: String, notifyStatusURL: String = "", notifyStatusToken: String = "") {
+    init(localBaseURL: String, remoteBaseURL: String, accessToken: String, notifyStatusURL: String = "", notifyStatusToken: String = "", aiBaseURL: String = "https://api.maolaoapi.cc", aiAccessToken: String = "", aiModel: String = "") {
         self.localBaseURL = localBaseURL
         self.remoteBaseURL = remoteBaseURL
         self.accessToken = accessToken
         self.notifyStatusURL = notifyStatusURL
         self.notifyStatusToken = notifyStatusToken
+        self.aiBaseURL = aiBaseURL
+        self.aiAccessToken = aiAccessToken
+        self.aiModel = aiModel
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -32,6 +38,9 @@ struct FluxgramSettings: Equatable, Codable {
         case accessToken
         case notifyStatusURL
         case notifyStatusToken
+        case aiBaseURL
+        case aiAccessToken
+        case aiModel
     }
 
     init(from decoder: Decoder) throws {
@@ -41,6 +50,9 @@ struct FluxgramSettings: Equatable, Codable {
         self.accessToken = try container.decode(String.self, forKey: .accessToken)
         self.notifyStatusURL = try container.decodeIfPresent(String.self, forKey: .notifyStatusURL) ?? ""
         self.notifyStatusToken = try container.decodeIfPresent(String.self, forKey: .notifyStatusToken) ?? ""
+        self.aiBaseURL = try container.decodeIfPresent(String.self, forKey: .aiBaseURL) ?? "https://api.maolaoapi.cc"
+        self.aiAccessToken = try container.decodeIfPresent(String.self, forKey: .aiAccessToken) ?? ""
+        self.aiModel = try container.decodeIfPresent(String.self, forKey: .aiModel) ?? ""
     }
 }
 
@@ -132,6 +144,10 @@ private enum FluxgramSettingsEntry: ItemListNodeEntry {
     case credentialsHeader
     case accessToken(String)
     case notifyStatusToken(String)
+    case aiBaseURL(String)
+    case aiAccessToken(String)
+    case aiModel(String)
+    case aiInfo
     case testConnection
     case connectionStatus(String)
     case downloads
@@ -147,6 +163,8 @@ private enum FluxgramSettingsEntry: ItemListNodeEntry {
         case .endpointsHeader, .endpointsInfo, .localEndpoint, .remoteEndpoint, .notifyStatusEndpoint:
             return FluxgramSettingsSection.endpoints.rawValue
         case .credentialsHeader, .accessToken, .notifyStatusToken:
+            return FluxgramSettingsSection.credentials.rawValue
+        case .aiBaseURL, .aiAccessToken, .aiModel, .aiInfo:
             return FluxgramSettingsSection.credentials.rawValue
         case .testConnection, .connectionStatus, .downloads, .notifyStatus, .clear:
             return FluxgramSettingsSection.actions.rawValue
@@ -175,6 +193,14 @@ private enum FluxgramSettingsEntry: ItemListNodeEntry {
             return 6
         case .notifyStatusToken:
             return 7
+        case .aiBaseURL:
+            return 17
+        case .aiAccessToken:
+            return 18
+        case .aiModel:
+            return 19
+        case .aiInfo:
+            return 20
         case .testConnection:
             return 8
         case .connectionStatus:
@@ -307,6 +333,73 @@ private enum FluxgramSettingsEntry: ItemListNodeEntry {
                     arguments.updateState { state in
                         var state = state
                         state.notifyStatusToken = value
+                        return state
+                    }
+                },
+                action: {}
+            )
+        case .aiInfo:
+            return ItemListInfoItem(
+                presentationData: presentationData,
+                systemStyle: fluxgramItemListSystemStyle,
+                title: "AI 分析",
+                text: .plain("只在你手动点击“AI 分析”时发送当前选中的消息摘要。模型留空时会自动读取中转站的可用模型列表。API Key 仅保存在此 iPhone 的 Keychain。"),
+                style: .blocks,
+                sectionId: self.section,
+                closeAction: nil
+            )
+        case let .aiBaseURL(value):
+            return ItemListSingleLineInputItem(
+                presentationData: presentationData,
+                systemStyle: fluxgramItemListSystemStyle,
+                title: NSAttributedString(string: "AI 中转站", textColor: presentationData.theme.list.itemPrimaryTextColor),
+                text: value,
+                placeholder: "https://api.example.com",
+                type: .regular(capitalization: false, autocorrection: false),
+                clearType: .always,
+                sectionId: self.section,
+                textUpdated: { value in
+                    arguments.updateState { state in
+                        var state = state
+                        state.aiBaseURL = value
+                        return state
+                    }
+                },
+                action: {}
+            )
+        case let .aiAccessToken(value):
+            return ItemListSingleLineInputItem(
+                presentationData: presentationData,
+                systemStyle: fluxgramItemListSystemStyle,
+                title: NSAttributedString(string: "AI API Key", textColor: presentationData.theme.list.itemPrimaryTextColor),
+                text: value,
+                placeholder: "sk-…",
+                type: .password,
+                clearType: .always,
+                sectionId: self.section,
+                textUpdated: { value in
+                    arguments.updateState { state in
+                        var state = state
+                        state.aiAccessToken = value
+                        return state
+                    }
+                },
+                action: {}
+            )
+        case let .aiModel(value):
+            return ItemListSingleLineInputItem(
+                presentationData: presentationData,
+                systemStyle: fluxgramItemListSystemStyle,
+                title: NSAttributedString(string: "模型（可选）", textColor: presentationData.theme.list.itemPrimaryTextColor),
+                text: value,
+                placeholder: "留空则自动选择",
+                type: .regular(capitalization: false, autocorrection: false),
+                clearType: .always,
+                sectionId: self.section,
+                textUpdated: { value in
+                    arguments.updateState { state in
+                        var state = state
+                        state.aiModel = value
                         return state
                     }
                 },
@@ -445,6 +538,10 @@ private func fluxgramSettingsEntries(settings: FluxgramSettings, connectionStatu
         .credentialsHeader,
         .accessToken(settings.accessToken),
         .notifyStatusToken(settings.notifyStatusToken),
+        .aiInfo,
+        .aiBaseURL(settings.aiBaseURL),
+        .aiAccessToken(settings.aiAccessToken),
+        .aiModel(settings.aiModel),
         .testConnection,
         .connectionStatus(connectionStatus),
         .downloads,
@@ -482,6 +579,7 @@ private enum FluxgramSettingsValidationError: Error {
     case missingEndpoint
     case invalidLocalEndpoint
     case invalidRemoteEndpoint
+    case invalidAIEndpoint
     case invalidNotifyStatusEndpoint
     case missingAccessToken
     case invalidAccessToken
@@ -542,7 +640,20 @@ private func validatedSettings(_ settings: FluxgramSettings) throws -> FluxgramS
         throw FluxgramSettingsValidationError.invalidNotifyStatusToken
     }
 
-    return FluxgramSettings(localBaseURL: localBaseURL, remoteBaseURL: remoteBaseURL, accessToken: accessToken, notifyStatusURL: notifyStatusURL, notifyStatusToken: notifyStatusToken)
+    let aiBaseURL = settings.aiBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard aiBaseURL.isEmpty || normalizedBaseURL(aiBaseURL) != nil else {
+        throw FluxgramSettingsValidationError.invalidAIEndpoint
+    }
+    let aiAccessToken = settings.aiAccessToken.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard aiAccessToken.rangeOfCharacter(from: .newlines) == nil else {
+        throw FluxgramSettingsValidationError.invalidAccessToken
+    }
+    let aiModel = settings.aiModel.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard aiModel.rangeOfCharacter(from: .newlines) == nil else {
+        throw FluxgramSettingsValidationError.invalidAccessToken
+    }
+
+    return FluxgramSettings(localBaseURL: localBaseURL, remoteBaseURL: remoteBaseURL, accessToken: accessToken, notifyStatusURL: notifyStatusURL, notifyStatusToken: notifyStatusToken, aiBaseURL: normalizedBaseURL(aiBaseURL) ?? "", aiAccessToken: aiAccessToken, aiModel: aiModel)
 }
 
 private func validationMessage(_ error: FluxgramSettingsValidationError) -> String {
@@ -553,6 +664,8 @@ private func validationMessage(_ error: FluxgramSettingsValidationError) -> Stri
         return "请输入有效的内网 HTTP 或 HTTPS 地址。"
     case .invalidRemoteEndpoint:
         return "请输入有效的外网 HTTP 或 HTTPS 地址。"
+    case .invalidAIEndpoint:
+        return "请输入有效的 AI 中转站 HTTP 或 HTTPS 地址。"
     case .invalidNotifyStatusEndpoint:
         return "请输入有效的 NAS 监听 HTTP 或 HTTPS 地址。"
     case .missingAccessToken:
@@ -636,7 +749,7 @@ public func fluxgramSettingsController(context: AccountContext) -> ViewControlle
                         do {
                             try FluxgramSettingsStore.clear()
                             updateState { _ in
-                                return FluxgramSettings(localBaseURL: "", remoteBaseURL: "", accessToken: "", notifyStatusURL: "", notifyStatusToken: "")
+                                return FluxgramSettings(localBaseURL: "", remoteBaseURL: "", accessToken: "", notifyStatusURL: "", notifyStatusToken: "", aiBaseURL: "https://api.maolaoapi.cc")
                             }
                         } catch {
                             presentAlert("无法清除安全设置。")
