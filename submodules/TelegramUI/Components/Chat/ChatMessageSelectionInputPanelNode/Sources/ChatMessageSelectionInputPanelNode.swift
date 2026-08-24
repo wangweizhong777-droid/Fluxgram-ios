@@ -178,6 +178,7 @@ private final class GlassButtonView: UIView {
 }
 
 public final class ChatMessageSelectionInputPanelNode: ChatInputPanelNode {
+    private let capsuleBackgroundView: GlassBackgroundView
     private let deleteButton: GlassButtonView
     private let reportButton: GlassButtonView
     private let forwardButton: GlassButtonView
@@ -212,6 +213,13 @@ public final class ChatMessageSelectionInputPanelNode: ChatInputPanelNode {
     public init(theme: PresentationTheme, strings: PresentationStrings, peerMedia: Bool = false) {
         self.theme = theme
         self.peerMedia = peerMedia
+
+        self.capsuleBackgroundView = GlassBackgroundView()
+        self.capsuleBackgroundView.isUserInteractionEnabled = false
+        self.capsuleBackgroundView.layer.shadowColor = UIColor.black.cgColor
+        self.capsuleBackgroundView.layer.shadowOpacity = 0.22
+        self.capsuleBackgroundView.layer.shadowRadius = 18.0
+        self.capsuleBackgroundView.layer.shadowOffset = CGSize(width: 0.0, height: 8.0)
         
         self.deleteButton = GlassButtonView()
         self.deleteButton.icon = "Chat/Input/Accessory Panels/MessageSelectionTrash"
@@ -266,6 +274,8 @@ public final class ChatMessageSelectionInputPanelNode: ChatInputPanelNode {
         self.reactionOverlayContainer = ChatMessageSelectionInputPanelNodeViewForOverlayContent()
         
         super.init()
+
+        self.view.addSubview(self.capsuleBackgroundView)
         
         self.view.addSubview(self.deleteButton)
         self.view.addSubview(self.reportButton)
@@ -676,7 +686,8 @@ public final class ChatMessageSelectionInputPanelNode: ChatInputPanelNode {
         
         buttons = buttons.filter { !$0.isHidden }
         let buttonSize = CGSize(width: 40.0, height: 40.0)
-        
+        let buttonVerticalInset: CGFloat = 4.0
+
         let availableWidth = width - leftInset - rightInset
         let spacing: CGFloat = floor((availableWidth - buttonSize.width * CGFloat(buttons.count)) / CGFloat(buttons.count - 1))
         var offset: CGFloat = leftInset
@@ -684,14 +695,35 @@ public final class ChatMessageSelectionInputPanelNode: ChatInputPanelNode {
             let button = buttons[i]
             let buttonFrame: CGRect
             if i == buttons.count - 1 {
-                buttonFrame = CGRect(origin: CGPoint(x: width - rightInset - buttonSize.width, y: 0.0), size: buttonSize)
+                buttonFrame = CGRect(origin: CGPoint(x: width - rightInset - buttonSize.width, y: buttonVerticalInset), size: buttonSize)
             } else {
-                buttonFrame = CGRect(origin: CGPoint(x: offset, y: 0.0), size: buttonSize)
+                buttonFrame = CGRect(origin: CGPoint(x: offset, y: buttonVerticalInset), size: buttonSize)
             }
             transition.updateFrame(view: button, frame: buttonFrame)
-            button.update(theme: interfaceState.theme, preferClearGlass: interfaceState.preferredGlassType == .clear, size: buttonFrame.size, transition: ComponentTransition(transition))
+            button.update(theme: interfaceState.theme, preferClearGlass: true, size: buttonFrame.size, transition: ComponentTransition(transition))
             
             offset += buttonSize.width + spacing
+        }
+
+        if let firstButton = buttons.first, let lastButton = buttons.last {
+            let capsuleHorizontalInset: CGFloat = 8.0
+            let capsuleFrame = CGRect(
+                x: max(0.0, firstButton.frame.minX - capsuleHorizontalInset),
+                y: 0.0,
+                width: min(width, lastButton.frame.maxX + capsuleHorizontalInset) - max(0.0, firstButton.frame.minX - capsuleHorizontalInset),
+                height: panelHeight
+            )
+            transition.updateFrame(view: self.capsuleBackgroundView, frame: capsuleFrame)
+            self.capsuleBackgroundView.update(
+                size: capsuleFrame.size,
+                cornerRadius: capsuleFrame.height * 0.5,
+                isDark: interfaceState.theme.overallDarkAppearance,
+                tintColor: .init(kind: .panel),
+                isInteractive: false,
+                transition: ComponentTransition(transition)
+            )
+        } else {
+            transition.updateFrame(view: self.capsuleBackgroundView, frame: CGRect(origin: CGPoint(), size: CGSize(width: 0.0, height: panelHeight)))
         }
         
         if let reactionContextNode = self.reactionOverlayContainer.reactionContextNode, let tagButton {
