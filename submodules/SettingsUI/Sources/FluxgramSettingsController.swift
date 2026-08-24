@@ -119,6 +119,7 @@ private enum FluxgramSettingsSection: Int32 {
     case endpoints
     case credentials
     case actions
+    case experiments
     case about
 }
 
@@ -136,6 +137,8 @@ private enum FluxgramSettingsEntry: ItemListNodeEntry {
     case downloads
     case notifyStatus
     case clear
+    case experimentsHeader
+    case themePreview
     case aboutHeader
     case aboutInfo(String)
 
@@ -147,6 +150,8 @@ private enum FluxgramSettingsEntry: ItemListNodeEntry {
             return FluxgramSettingsSection.credentials.rawValue
         case .testConnection, .connectionStatus, .downloads, .notifyStatus, .clear:
             return FluxgramSettingsSection.actions.rawValue
+        case .experimentsHeader, .themePreview:
+            return FluxgramSettingsSection.experiments.rawValue
         case .aboutHeader, .aboutInfo:
             return FluxgramSettingsSection.about.rawValue
         }
@@ -180,10 +185,14 @@ private enum FluxgramSettingsEntry: ItemListNodeEntry {
             return 11
         case .clear:
             return 12
-        case .aboutHeader:
+        case .experimentsHeader:
             return 13
-        case .aboutInfo:
+        case .themePreview:
             return 14
+        case .aboutHeader:
+            return 15
+        case .aboutInfo:
+            return 16
         }
     }
 
@@ -365,6 +374,22 @@ private enum FluxgramSettingsEntry: ItemListNodeEntry {
                     arguments.clear()
                 }
             )
+        case .experimentsHeader:
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: "实验功能", sectionId: self.section)
+        case .themePreview:
+            return ItemListDisclosureItem(
+                presentationData: presentationData,
+                systemStyle: .glass,
+                title: "主题预览",
+                label: "Fluxgram 高级风格",
+                labelStyle: .text,
+                sectionId: self.section,
+                style: .blocks,
+                disclosureStyle: .arrow,
+                action: {
+                    arguments.openThemePreview()
+                }
+            )
         case .aboutHeader:
             return ItemListSectionHeaderItem(presentationData: presentationData, text: "关于 Fluxgram", sectionId: self.section)
         case let .aboutInfo(text):
@@ -386,6 +411,7 @@ private final class FluxgramSettingsControllerArguments {
     let testConnection: () -> Void
     let openDownloads: () -> Void
     let openNotifyStatus: () -> Void
+    let openThemePreview: () -> Void
     let clear: () -> Void
 
     init(
@@ -393,12 +419,14 @@ private final class FluxgramSettingsControllerArguments {
         testConnection: @escaping () -> Void,
         openDownloads: @escaping () -> Void,
         openNotifyStatus: @escaping () -> Void,
+        openThemePreview: @escaping () -> Void,
         clear: @escaping () -> Void
     ) {
         self.updateState = updateState
         self.testConnection = testConnection
         self.openDownloads = openDownloads
         self.openNotifyStatus = openNotifyStatus
+        self.openThemePreview = openThemePreview
         self.clear = clear
     }
 }
@@ -422,6 +450,8 @@ private func fluxgramSettingsEntries(settings: FluxgramSettings, connectionStatu
         .downloads,
         .notifyStatus,
         .clear,
+        .experimentsHeader,
+        .themePreview,
         .aboutHeader,
         .aboutInfo(fluxgramAboutText())
     ]
@@ -591,6 +621,8 @@ public func fluxgramSettingsController(context: AccountContext) -> ViewControlle
         } catch {
             presentAlert("无法读取 NAS 监听状态。")
         }
+    }, openThemePreview: {
+        controller?.push(fluxgramThemePreviewController(context: context))
     }, clear: {
         let presentationData = context.sharedContext.currentPresentationData.with { $0 }
         controller?.present(
