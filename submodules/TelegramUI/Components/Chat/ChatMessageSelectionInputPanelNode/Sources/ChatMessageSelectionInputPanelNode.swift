@@ -545,8 +545,8 @@ public final class ChatMessageSelectionInputPanelNode: ChatInputPanelNode {
             self.downloadButton.isHidden = !self.downloadButton.isEnabled || self.interfaceInteraction?.downloadSelectedMessages == nil
             self.favoriteButton.isEnabled = !self.selectedMessages.isEmpty
             self.favoriteButton.isHidden = !self.favoriteButton.isEnabled || self.interfaceInteraction?.favoriteSelectedMessages == nil
-            self.analyzeButton.isEnabled = self.selectedMessages.count == 1
-            self.analyzeButton.isHidden = self.selectedMessages.count != 1 || self.interfaceInteraction?.analyzeSelectedMessages == nil
+            self.analyzeButton.isEnabled = !self.selectedMessages.isEmpty
+            self.analyzeButton.isHidden = self.selectedMessages.isEmpty || self.interfaceInteraction?.analyzeSelectedMessages == nil
             
             if self.peerMedia {
                 self.deleteButton.isHidden = !self.deleteButton.isEnabled

@@ -2203,65 +2203,79 @@ extension ChatControllerImpl {
         }, analyzeSelectedMessages: { [weak self] in
             guard let strongSelf = self,
                   let selectedIds = strongSelf.presentationInterfaceState.interfaceState.selectionState?.selectedIds,
-                  selectedIds.count == 1,
-                  let messageId = selectedIds.first else {
+                  !selectedIds.isEmpty else {
                 return
             }
 
-            let _ = (strongSelf.context.engine.data.get(TelegramEngine.EngineData.Item.Messages.Message(id: messageId))
-            |> deliverOnMainQueue).startStandalone(next: { [weak self] message in
-                guard let strongSelf = self, let message else {
+            let _ = (strongSelf.context.engine.data.get(EngineDataMap(
+                selectedIds.map(TelegramEngine.EngineData.Item.Messages.Message.init)
+            ))
+            |> map { messages -> [EngineMessage] in
+                return messages.values.compactMap { $0 }.sorted(by: { $0.index < $1.index })
+            }
+            |> deliverOnMainQueue).startStandalone(next: { [weak self] messages in
+                guard let strongSelf = self, !messages.isEmpty else {
                     return
                 }
 
-                let rawText = message.text.trimmingCharacters(in: .whitespacesAndNewlines)
-                let previewText: String
-                if rawText.isEmpty {
-                    previewText = message.media.isEmpty ? "这条消息没有可分析的文字内容。" : "这条消息主要包含媒体或文件内容。"
-                } else if rawText.count > 180 {
-                    let index = rawText.index(rawText.startIndex, offsetBy: 180)
-                    previewText = "\(rawText[..<index])…"
-                } else {
-                    previewText = rawText
-                }
-
-                var contentKinds: [String] = []
                 var hasVideo = false
-                for media in message.media {
-                    if media is TelegramMediaImage {
-                        contentKinds.append("图片")
-                    } else if let file = media as? TelegramMediaFile {
-                        if file.isVideo {
-                            hasVideo = true
-                            contentKinds.append("视频")
-                        } else if file.mimeType.hasPrefix("audio/") {
-                            contentKinds.append("音频")
-                        } else {
-                            contentKinds.append("文件")
-                        }
-                    } else if media is TelegramMediaWebpage {
-                        contentKinds.append("链接")
+                var allText = ""
+                var messageSummaries: [String] = []
+                for (offset, message) in messages.enumerated() {
+                    let rawText = message.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let textPreview: String
+                    if rawText.isEmpty {
+                        textPreview = message.media.isEmpty ? "无文字内容" : "无文字说明"
+                    } else if rawText.count > 180 {
+                        let index = rawText.index(rawText.startIndex, offsetBy: 180)
+                        textPreview = "\(rawText[..<index])…"
                     } else {
-                        contentKinds.append("媒体")
+                        textPreview = rawText
                     }
+
+                    var contentKinds: [String] = []
+                    for media in message.media {
+                        if media is TelegramMediaImage {
+                            contentKinds.append("图片")
+                        } else if let file = media as? TelegramMediaFile {
+                            if file.isVideo {
+                                hasVideo = true
+                                contentKinds.append("视频")
+                            } else if file.mimeType.hasPrefix("audio/") {
+                                contentKinds.append("音频")
+                            } else {
+                                contentKinds.append("文件")
+                            }
+                        } else if media is TelegramMediaWebpage {
+                            contentKinds.append("链接")
+                        } else {
+                            contentKinds.append("媒体")
+                        }
+                    }
+
+                    allText += "\n\(rawText)"
+                    let kindsText = contentKinds.isEmpty ? "" : "（\(Array(Set(contentKinds)).joined(separator: "、"))）"
+                    messageSummaries.append("\(offset + 1). \(textPreview)\(kindsText)")
                 }
 
-                let lowercasedText = rawText.lowercased()
+                let previewText = messageSummaries.joined(separator: "\n")
+                let lowercasedText = allText.lowercased()
                 let suggestion: String
                 if hasVideo || lowercasedText.contains("视频") {
                     suggestion = "视频素材"
                 } else if lowercasedText.contains("项目") || lowercasedText.contains("设计") || lowercasedText.contains("代码") {
                     suggestion = "项目灵感"
-                } else if lowercasedText.contains("http") || lowercasedText.contains("www") || contentKinds.contains("链接") {
+                } else if lowercasedText.contains("http") || lowercasedText.contains("www") || previewText.contains("链接") {
                     suggestion = "稍后看"
                 } else {
                     suggestion = "工作资料"
                 }
 
-                var aiInput = "消息文字摘要：\(previewText)"
-                if !contentKinds.isEmpty {
-                    aiInput += "\n已知内容类型：\(Array(Set(contentKinds)).joined(separator: "、"))"
-                }
+                let aiInput = """
+                以下是用户手动选中的同一组聊天消息，共 \(messages.count) 条。请基于文字和媒体类型摘要，概括这组内容，并给出适合收藏箱的分类建议。
+
+                \(previewText)
+                """
 
                 FluxgramAIService.shared.analyze(text: aiInput) { [weak strongSelf] result in
                     guard let strongSelf else {
@@ -2274,9 +2288,10 @@ extension ChatControllerImpl {
                     case let .success(aiResult):
                         title = "AI 分析（\(aiResult.model)）"
                         lines = [
-                            "仅分析你刚刚选中的 1 条消息。不会自动扫描整个会话，也不会在后台运行。",
+                            "仅分析你刚刚手动选中的 \(messages.count) 条消息。不会自动扫描整个会话，也不会在后台运行。",
                             "",
-                            "内容摘要：\(previewText)",
+                            "发送给 AI 的本地摘要（未上传原图、视频或文件）：",
+                            previewText,
                             "",
                             aiResult.text
                         ]
