@@ -129,6 +129,7 @@ enum FluxgramSettingsStore {
 
 private enum FluxgramSettingsSection: Int32 {
     case endpoints
+    case ai
     case credentials
     case actions
     case experiments
@@ -144,6 +145,7 @@ private enum FluxgramSettingsEntry: ItemListNodeEntry {
     case credentialsHeader
     case accessToken(String)
     case notifyStatusToken(String)
+    case aiHeader
     case aiBaseURL(String)
     case aiAccessToken(String)
     case aiModel(String)
@@ -162,9 +164,9 @@ private enum FluxgramSettingsEntry: ItemListNodeEntry {
         switch self {
         case .endpointsHeader, .endpointsInfo, .localEndpoint, .remoteEndpoint, .notifyStatusEndpoint:
             return FluxgramSettingsSection.endpoints.rawValue
+        case .aiHeader, .aiBaseURL, .aiAccessToken, .aiModel, .aiInfo:
+            return FluxgramSettingsSection.ai.rawValue
         case .credentialsHeader, .accessToken, .notifyStatusToken:
-            return FluxgramSettingsSection.credentials.rawValue
-        case .aiBaseURL, .aiAccessToken, .aiModel, .aiInfo:
             return FluxgramSettingsSection.credentials.rawValue
         case .testConnection, .connectionStatus, .downloads, .notifyStatus, .clear:
             return FluxgramSettingsSection.actions.rawValue
@@ -188,37 +190,39 @@ private enum FluxgramSettingsEntry: ItemListNodeEntry {
         case .notifyStatusEndpoint:
             return 4
         case .credentialsHeader:
-            return 5
-        case .accessToken:
-            return 6
-        case .notifyStatusToken:
-            return 7
-        case .aiBaseURL:
-            return 17
-        case .aiAccessToken:
-            return 18
-        case .aiModel:
-            return 19
-        case .aiInfo:
-            return 20
-        case .testConnection:
-            return 8
-        case .connectionStatus:
-            return 9
-        case .downloads:
             return 10
-        case .notifyStatus:
+        case .accessToken:
             return 11
-        case .clear:
+        case .notifyStatusToken:
             return 12
-        case .experimentsHeader:
+        case .aiHeader:
+            return 5
+        case .aiInfo:
+            return 6
+        case .aiBaseURL:
+            return 7
+        case .aiAccessToken:
+            return 8
+        case .aiModel:
+            return 9
+        case .testConnection:
             return 13
-        case .themePreview:
+        case .connectionStatus:
             return 14
-        case .aboutHeader:
+        case .downloads:
             return 15
-        case .aboutInfo:
+        case .notifyStatus:
             return 16
+        case .clear:
+            return 17
+        case .experimentsHeader:
+            return 18
+        case .themePreview:
+            return 19
+        case .aboutHeader:
+            return 20
+        case .aboutInfo:
+            return 21
         }
     }
 
@@ -348,6 +352,8 @@ private enum FluxgramSettingsEntry: ItemListNodeEntry {
                 sectionId: self.section,
                 closeAction: nil
             )
+        case .aiHeader:
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: "AI 分析", sectionId: self.section)
         case let .aiBaseURL(value):
             return ItemListSingleLineInputItem(
                 presentationData: presentationData,
@@ -535,13 +541,14 @@ private func fluxgramSettingsEntries(settings: FluxgramSettings, connectionStatu
         .localEndpoint(settings.localBaseURL),
         .remoteEndpoint(settings.remoteBaseURL),
         .notifyStatusEndpoint(settings.notifyStatusURL),
-        .credentialsHeader,
-        .accessToken(settings.accessToken),
-        .notifyStatusToken(settings.notifyStatusToken),
+        .aiHeader,
         .aiInfo,
         .aiBaseURL(settings.aiBaseURL),
         .aiAccessToken(settings.aiAccessToken),
         .aiModel(settings.aiModel),
+        .credentialsHeader,
+        .accessToken(settings.accessToken),
+        .notifyStatusToken(settings.notifyStatusToken),
         .testConnection,
         .connectionStatus(connectionStatus),
         .downloads,
