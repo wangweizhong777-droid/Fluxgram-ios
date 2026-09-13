@@ -1,4 +1,6 @@
 import Foundation
+import UIKit
+import AsyncDisplayKit
 import Display
 import SwiftSignalKit
 import TelegramPresentationData
@@ -6,6 +8,7 @@ import ItemListUI
 import AccountContext
 import TelegramCore
 import GalleryUI
+import AvatarNode
 
 public struct FluxgramShortVideoSource: Codable, Equatable {
     public var dialogId: Int64
@@ -204,44 +207,23 @@ private func fluxgramShortVideoStableId(for dialogId: Int64) -> Int32 {
 }
 
 private enum FluxgramShortVideoEntry: ItemListNodeEntry {
-    case play(Bool)
-    case refresh
-    case addSource
-    case updated(Int)
-    case sourcesHeader
-    case source(Int, FluxgramShortVideoSource)
-    case help
-    case status(String)
+    case intro(UIContentSizeCategory)
+    case actions(Bool, UIContentSizeCategory)
+    case updated(Int, UIContentSizeCategory)
+    case sources([FluxgramShortVideoSource], UIContentSizeCategory)
+    case help(UIContentSizeCategory)
+    case status(String, UIContentSizeCategory)
 
-    var section: ItemListSectionId {
-        switch self {
-        case .play, .refresh, .addSource, .updated:
-            return FluxgramShortVideoSection.playback.rawValue
-        case .sourcesHeader, .source:
-            return FluxgramShortVideoSection.sources.rawValue
-        case .help, .status:
-            return FluxgramShortVideoSection.help.rawValue
-        }
-    }
+    var section: ItemListSectionId { return 0 }
 
     var stableId: Int32 {
         switch self {
-        case .play:
-            return 0
-        case .refresh:
-            return 1
-        case .addSource:
-            return 2
-        case .updated:
-            return 3
-        case .sourcesHeader:
-            return 4
-        case let .source(_, source):
-            return fluxgramShortVideoStableId(for: source.dialogId)
-        case .help:
-            return 1_000_000_000
-        case .status:
-            return 1_000_000_001
+        case .intro: return 0
+        case .actions: return 1
+        case .updated: return 2
+        case .sources: return 3
+        case .help: return 4
+        case .status: return 5
         }
     }
 
@@ -251,86 +233,39 @@ private enum FluxgramShortVideoEntry: ItemListNodeEntry {
 
     func item(presentationData: ItemListPresentationData, arguments: Any) -> ListViewItem {
         let arguments = arguments as! FluxgramShortVideoControllerArguments
+        let content: FluxgramShortVideoBlock
+        let category: UIContentSizeCategory
         switch self {
-        case let .play(isScanning):
-            return ItemListActionItem(
-                presentationData: presentationData,
-                systemStyle: .glass,
-                title: isScanning ? "正在加载短视频..." : "播放短视频流",
-                kind: .generic,
-                alignment: .center,
-                sectionId: self.section,
-                style: .blocks,
-                action: {
-                    arguments.play()
-                }
-            )
-        case .addSource:
-            return ItemListDisclosureItem(
-                presentationData: presentationData,
-                systemStyle: .glass,
-                title: "添加频道或群组",
-                label: "选择短视频来源",
-                labelStyle: .text,
-                sectionId: self.section,
-                style: .blocks,
-                disclosureStyle: .arrow,
-                action: {
-                    arguments.addSource()
-                }
-            )
-        case let .updated(count):
-            return ItemListActionItem(
-                presentationData: presentationData,
-                systemStyle: .glass,
-                title: "查看本次更新（\(count) 个视频）",
-                kind: .generic,
-                alignment: .center,
-                sectionId: self.section,
-                style: .blocks,
-                action: {
-                    arguments.viewUpdated()
-                }
-            )
-        case .refresh:
-            return ItemListActionItem(
-                presentationData: presentationData,
-                systemStyle: .glass,
-                title: "重新扫描来源",
-                kind: .generic,
-                alignment: .center,
-                sectionId: self.section,
-                style: .blocks,
-                action: {
-                    arguments.refresh()
-                }
-            )
-        case .sourcesHeader:
-            return ItemListSectionHeaderItem(presentationData: presentationData, text: "短视频来源", sectionId: self.section)
-        case let .source(_, source):
-            let state = source.enabled ? "已启用" : "已暂停"
-            return ItemListDisclosureItem(
-                presentationData: presentationData,
-                systemStyle: .glass,
-                title: source.title.isEmpty ? "会话 \(source.dialogId)" : source.title,
-                label: "\(state) · 最长 \(source.durationLimit) 秒",
-                labelStyle: .text,
-                sectionId: self.section,
-                style: .blocks,
-                disclosureStyle: .arrow,
-                action: {
-                    arguments.edit(source)
-                }
-            )
-        case .help:
-            return ItemListTextItem(
-                presentationData: presentationData,
-                text: .plain("仅扫描你手动添加的 Telegram 频道和群组。视频不上传到 NAS，播放使用 Telegram 当前播放器。"),
-                sectionId: self.section
-            )
-        case let .status(text):
-            return ItemListTextItem(presentationData: presentationData, text: .plain(text), sectionId: self.section)
+        case let .intro(value):
+            category = value
+            content = .intro("从 Telegram 频道汇总可播放视频")
+        case let .actions(isScanning, value):
+            category = value
+            content = .rows(header: nil, count: nil, rows: [
+                FluxgramShortVideoRow(title: "播放短视频流", subtitle: isScanning ? "正在加载短视频…" : "打开当前来源的短视频流", symbol: "play.fill", tint: .systemBlue, action: arguments.play),
+                FluxgramShortVideoRow(title: "重新扫描来源", subtitle: "同步已添加的频道和群组", symbol: "viewfinder", tint: .systemBlue, action: arguments.refresh),
+                FluxgramShortVideoRow(title: "添加频道或群组", subtitle: "选择短视频来源（Telegram）", symbol: "plus", tint: .secondaryLabel, action: arguments.addSource)
+            ])
+        case let .updated(count, value):
+            category = value
+            content = .rows(header: nil, count: nil, rows: [
+                FluxgramShortVideoRow(title: "查看本次更新", subtitle: "\(count) 个视频", symbol: "play.rectangle", tint: .systemBlue, action: arguments.viewUpdated)
+            ])
+        case let .sources(sources, value):
+            category = value
+            content = .rows(header: "短视频来源", count: sources.count, rows: sources.map { source in
+                let title = source.title.isEmpty ? "会话 \(source.dialogId)" : source.title
+                let state = source.enabled ? "已启用" : "已暂停"
+                return FluxgramShortVideoRow(title: title, subtitle: "\(state) · 最长 \(source.durationLimit) 秒", symbol: nil, tint: .secondaryLabel, action: { arguments.edit(source) }, avatar: arguments.avatar(source.dialogId))
+            })
+        case let .help(value):
+            category = value
+            content = .information("仅扫描你手动添加的 Telegram 频道和群组。视频不上传到 NAS，播放使用 Telegram 当前播放器。")
+        case let .status(text, value):
+            category = value
+            content = .information(text)
         }
+        return FluxgramShortVideoBlockItem(content: content, category: category, sectionId: self.section)
     }
 }
 
@@ -340,22 +275,23 @@ private final class FluxgramShortVideoControllerArguments {
     let addSource: () -> Void
     let edit: (FluxgramShortVideoSource) -> Void
     let viewUpdated: () -> Void
+    let avatar: (Int64) -> Signal<UIImage?, NoError>?
 
-    init(play: @escaping () -> Void, refresh: @escaping () -> Void, addSource: @escaping () -> Void, edit: @escaping (FluxgramShortVideoSource) -> Void, viewUpdated: @escaping () -> Void) {
+    init(play: @escaping () -> Void, refresh: @escaping () -> Void, addSource: @escaping () -> Void, edit: @escaping (FluxgramShortVideoSource) -> Void, viewUpdated: @escaping () -> Void, avatar: @escaping (Int64) -> Signal<UIImage?, NoError>? = { _ in nil }) {
         self.play = play
         self.refresh = refresh
         self.addSource = addSource
         self.edit = edit
         self.viewUpdated = viewUpdated
+        self.avatar = avatar
     }
 }
 
-private func fluxgramShortVideoEntries(_ state: FluxgramShortVideoControllerState) -> [FluxgramShortVideoEntry] {
-    var entries: [FluxgramShortVideoEntry] = [.play(state.isScanning), .refresh, .addSource]
+private func fluxgramShortVideoEntries(_ state: FluxgramShortVideoControllerState, category: UIContentSizeCategory) -> [FluxgramShortVideoEntry] {
+    var entries: [FluxgramShortVideoEntry] = [.intro(category), .actions(state.isScanning, category)]
     if state.updatedMessageCount > 0 {
-        entries.append(.updated(state.updatedMessageCount))
+        entries.append(.updated(state.updatedMessageCount, category))
     }
-    entries.append(.sourcesHeader)
     let orderedSources = state.sources.sorted { lhs, rhs in
         let lhsID = fluxgramShortVideoStableId(for: lhs.dialogId)
         let rhsID = fluxgramShortVideoStableId(for: rhs.dialogId)
@@ -364,12 +300,10 @@ private func fluxgramShortVideoEntries(_ state: FluxgramShortVideoControllerStat
         }
         return lhs.dialogId < rhs.dialogId
     }
-    for (index, source) in orderedSources.enumerated() {
-        entries.append(.source(index, source))
-    }
-    entries.append(.help)
+    entries.append(.sources(orderedSources, category))
+    entries.append(.help(category))
     if !state.status.isEmpty {
-        entries.append(.status(state.status))
+        entries.append(.status(state.status, category))
     }
     return entries
 }
@@ -743,13 +677,29 @@ public func fluxgramShortVideoController(context: AccountContext) -> ViewControl
             return
         }
         openFeed(updatedMessages)
+    }, avatar: { dialogId in
+        let peerId = EnginePeer.Id(dialogId)
+        return context.engine.data.get(TelegramEngine.EngineData.Item.Peer.Peer(id: peerId))
+        |> mapToSignal { peer -> Signal<UIImage?, NoError> in
+            guard let peer else { return .single(nil) }
+            return peerAvatarCompleteImage(account: context.account, peer: peer, size: CGSize(width: 48.0, height: 48.0))
+            |> map { image -> UIImage? in image }
+        }
     })
 
-    let signal = combineLatest(context.sharedContext.presentationData, statePromise.get())
+    // Re-measure presentation rows when Dynamic Type changes, without touching source state.
+    let contentSizeCategory = Signal<UIContentSizeCategory, NoError> { subscriber in
+        subscriber.putNext(UIApplication.shared.preferredContentSizeCategory)
+        let observer = NotificationCenter.default.addObserver(forName: UIContentSizeCategory.didChangeNotification, object: nil, queue: .main) { _ in
+            subscriber.putNext(UIApplication.shared.preferredContentSizeCategory)
+        }
+        return ActionDisposable { NotificationCenter.default.removeObserver(observer) }
+    }
+    let signal = combineLatest(context.sharedContext.presentationData, statePromise.get(), contentSizeCategory)
     |> deliverOnMainQueue
-    |> map { presentationData, state -> (ItemListControllerState, (ItemListNodeState, FluxgramShortVideoControllerArguments)) in
+    |> map { presentationData, state, category -> (ItemListControllerState, (ItemListNodeState, FluxgramShortVideoControllerArguments)) in
         let controllerState = ItemListControllerState(presentationData: ItemListPresentationData(presentationData), title: .text("短视频流"), leftNavigationButton: nil, rightNavigationButton: nil, backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back), animateChanges: true)
-        let listState = ItemListNodeState(presentationData: ItemListPresentationData(presentationData), entries: fluxgramShortVideoEntries(state), style: .blocks, emptyStateItem: nil, animateChanges: true)
+        let listState = ItemListNodeState(presentationData: ItemListPresentationData(presentationData), entries: fluxgramShortVideoEntries(state, category: category), style: .blocks, emptyStateItem: nil, animateChanges: true)
         return (controllerState, (listState, arguments))
     }
 
