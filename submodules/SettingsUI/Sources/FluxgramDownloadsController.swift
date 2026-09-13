@@ -2,28 +2,41 @@ import Foundation
 import UIKit
 import Display
 import SwiftSignalKit
+import Postbox
 import TelegramPresentationData
 import ItemListUI
 import AccountContext
 import TelegramCore
 import UndoUI
+import TinyThumbnail
 
 // Fluxgram pages use the opaque, compact list treatment so dark mode keeps a
-// clear separation between the page background and each grouped card. The
-// glass treatment is reserved for navigation-level surfaces where translucency
-// is useful, not for dense download rows.
-private let fluxgramItemListSystemStyle: ItemListSystemStyle = .legacy
+// clear separation between the page background and each grouped card.
+private let fluxgramDownloadsItemListSystemStyle: ItemListSystemStyle = .glass
+private let fluxgramItemListSystemStyle: ItemListSystemStyle = .glass
 
 private struct FluxgramDownloadsControllerState: Equatable {
     var active: [FluxgramNASDownloadJob]
     var history: [FluxgramNASDownloadJob]
     var pending: [FluxgramNASSubmission]
     var error: String
+    var speeds: [String: Int64]
+    var thumbnails: [String: Data]
+    var historyLimit: Int
+    var filter: FluxgramDownloadsFilter
+}
+
+private enum FluxgramDownloadsFilter: String, Equatable {
+    case all = "全部"
+    case active = "下载中"
+    case waiting = "已暂停"
+    case completed = "已完成"
+    case failed = "失败"
 }
 
 private enum FluxgramDownloadsSection: Int32 {
-    case pending
     case active
+    case pending
     case history
     case status
 }
@@ -47,6 +60,143 @@ private func fluxgramDownloadStableId(_ job: FluxgramNASDownloadJob, namespace: 
     return fluxgramStableHash(identifier, namespace: namespace)
 }
 
+private func fluxgramPrivateChannelMessage(for job: FluxgramNASDownloadJob) -> (channelId: Int64, messageId: Int32)? {
+    if let components = URLComponents(string: job.sourceUrl),
+       let host = components.host?.lowercased(),
+       host == "t.me" || host == "www.t.me" {
+        let path = components.path.split(separator: "/", omittingEmptySubsequences: true)
+        if path.count >= 3,
+           path[0].lowercased() == "c",
+           let channelId = Int64(String(path[1])),
+           let messageId = Int32(String(path[2])),
+           channelId > 0,
+           messageId > 0 {
+            return (channelId, messageId)
+        }
+    }
+
+    // Downloads created before TGAPP persisted peerType and peerAccessHash
+    // only retain a positive dialog id. For the known legacy entity failure,
+    // it represents the numeric component of a t.me/c private channel link.
+    let error = job.error.lowercased()
+    guard error.contains("could not find the input entity"),
+          let storedDialogId = job.sourceDialogId,
+          let messageId = job.sourceRootMessageId ?? job.sourceMessageId,
+          messageId > 0 else {
+        return nil
+    }
+    // NAS normally stores the t.me/c component directly. Accept the full
+    // Telegram -100... peer id as well for older records.
+    let channelId: Int64
+    if storedDialogId < -1_000_000_000_000 {
+        channelId = -storedDialogId - 1_000_000_000_000
+    } else if storedDialogId > 0 {
+        channelId = storedDialogId
+    } else {
+        return nil
+    }
+    return channelId > 0 ? (channelId, messageId) : nil
+}
+
+private struct FluxgramOriginalMessageTarget {
+    let peerId: PeerId
+    let messageId: MessageId
+    let isForwarded: Bool
+}
+
+/// Resolves the chat/message to open for an old NAS record.
+///
+/// Older records only contain the chat in which the media was received. That
+/// chat can be a private user (for example, a forwarding bot) while Telegram's
+/// actual source channel is stored in the forwarded message metadata. Read the
+/// received copy first, then prefer its `forwardInfo.sourceMessageId` when it
+/// is available. The download itself still uses the received copy elsewhere;
+/// this helper is only for navigation.
+private func fluxgramOriginalMessageTarget(context: AccountContext, job: FluxgramNASDownloadJob) -> Signal<FluxgramOriginalMessageTarget?, NoError> {
+    guard let dialogId = job.sourceDialogId,
+          let fallbackMessageId = job.sourceRootMessageId ?? job.sourceMessageId else {
+        return .single(nil)
+    }
+
+    let currentPeerId = PeerId(dialogId)
+    let currentMessageIds: [MessageId] = {
+        var ids: [MessageId] = []
+        if let rootMessageId = job.sourceRootMessageId {
+            ids.append(MessageId(peerId: currentPeerId, namespace: Namespaces.Message.Cloud, id: rootMessageId))
+        }
+        if let messageId = job.sourceMessageId,
+           !ids.contains(where: { $0.id == messageId }) {
+            ids.append(MessageId(peerId: currentPeerId, namespace: Namespaces.Message.Cloud, id: messageId))
+        }
+        return ids
+    }()
+
+    guard !currentMessageIds.isEmpty else {
+        return .single(FluxgramOriginalMessageTarget(
+            peerId: currentPeerId,
+            messageId: MessageId(peerId: currentPeerId, namespace: Namespaces.Message.Cloud, id: fallbackMessageId),
+            isForwarded: false
+        ))
+    }
+
+    let messages = context.engine.messages.getMessagesLoadIfNecessary(currentMessageIds, strategy: .cloud(skipLocal: false))
+    |> mapToSignal { result -> Signal<EngineMessage?, GetMessagesError> in
+        switch result {
+        case .progress:
+            // The loader emits progress before the final result. Keep the
+            // inner signal alive until that result arrives.
+            return .never()
+        case let .result(messages):
+            // An album can have more than one stored message. Prefer a copy
+            // that actually carries forwarding metadata, otherwise use the
+            // root message as the normal fallback.
+            let message = messages.first(where: { $0.forwardInfo?.sourceMessageId != nil }) ?? messages.first
+            return .single(message.flatMap(EngineMessage.init))
+        }
+    }
+    |> `catch` { _ -> Signal<EngineMessage?, NoError> in
+        return .single(nil)
+    }
+
+    return messages
+    |> mapToSignal { message -> Signal<FluxgramOriginalMessageTarget?, NoError> in
+        guard let message,
+              let sourceMessageId = message.forwardInfo?.sourceMessageId else {
+            return .single(FluxgramOriginalMessageTarget(
+                peerId: currentPeerId,
+                messageId: MessageId(peerId: currentPeerId, namespace: Namespaces.Message.Cloud, id: fallbackMessageId),
+                isForwarded: false
+            ))
+        }
+
+        let sourcePeerId = sourceMessageId.peerId
+        let sourcePeer = message.forwardInfo?.source ?? message.peers[sourcePeerId]
+        if let sourcePeer, sourcePeer.id == sourcePeerId {
+            // The forwarded message normally carries the complete channel
+            // entity, including its access hash. Persist it before navigating
+            // so the chat controller can construct a valid input peer.
+            return context.account.postbox.transaction { transaction -> FluxgramOriginalMessageTarget? in
+                transaction.updatePeersInternal([sourcePeer], update: { _, updatedPeer in
+                    return updatedPeer
+                })
+                return FluxgramOriginalMessageTarget(peerId: sourcePeerId, messageId: sourceMessageId, isForwarded: true)
+            }
+        }
+
+        // Privacy-protected forwards may omit the peer object. Reuse an entity
+        // already cached locally when possible; the message id still points to
+        // the original peer and is safe to use for navigation.
+        return context.engine.data.get(TelegramEngine.EngineData.Item.Peer.Peer(id: sourcePeerId))
+        |> take(1)
+        |> map { cachedPeer in
+            if let cachedPeer {
+                return FluxgramOriginalMessageTarget(peerId: sourcePeerId, messageId: sourceMessageId, isForwarded: true)
+            }
+            return nil
+        }
+    }
+}
+
 private func fluxgramDownloadNotificationKey(_ job: FluxgramNASDownloadJob) -> String {
     if !job.id.isEmpty {
         return job.id
@@ -55,6 +205,77 @@ private func fluxgramDownloadNotificationKey(_ job: FluxgramNASDownloadJob) -> S
         return job.outputFile
     }
     return "\(job.fileName)|\(job.sourceLabel)|\(job.downloadSubdir)"
+}
+
+private func fluxgramDownloadThumbnailKey(_ job: FluxgramNASDownloadJob) -> String {
+    if !job.id.isEmpty {
+        return job.id
+    }
+    return "\(job.fileName)|\(job.sourceUrl)|\(job.sourceMessageId ?? 0)"
+}
+
+/// Loads only Telegram's immediate preview for an older NAS task. New tasks
+/// receive this data when they are submitted, while this path lets existing
+/// records benefit without changing or restarting their downloads.
+private func fluxgramLocalDownloadThumbnail(context: AccountContext, job: FluxgramNASDownloadJob) -> Signal<Data?, NoError> {
+    var messageIds: [MessageId] = []
+    if let dialogId = job.sourceDialogId {
+        var peerIds: [PeerId] = [PeerId(dialogId)]
+        let backendPeerId: Int64?
+        if dialogId < -1_000_000_000_000 {
+            backendPeerId = -dialogId - 1_000_000_000_000
+        } else if dialogId > 0 {
+            backendPeerId = dialogId
+        } else {
+            backendPeerId = -dialogId
+        }
+        if let backendPeerId, backendPeerId > 0 {
+            peerIds.append(PeerId(namespace: Namespaces.Peer.CloudChannel, id: PeerId.Id._internalFromInt64Value(backendPeerId)))
+            peerIds.append(PeerId(namespace: Namespaces.Peer.CloudGroup, id: PeerId.Id._internalFromInt64Value(backendPeerId)))
+        }
+        var seenPeerIds = Set<PeerId>()
+        for peerId in peerIds where seenPeerIds.insert(peerId).inserted {
+            if let rootMessageId = job.sourceRootMessageId {
+                messageIds.append(MessageId(peerId: peerId, namespace: Namespaces.Message.Cloud, id: rootMessageId))
+            }
+            if let messageId = job.sourceMessageId,
+               !messageIds.contains(where: { $0.peerId == peerId && $0.id == messageId }) {
+                messageIds.append(MessageId(peerId: peerId, namespace: Namespaces.Message.Cloud, id: messageId))
+            }
+        }
+    } else if let source = fluxgramPrivateChannelMessage(for: job) {
+        let peerId = EnginePeer.Id(
+            namespace: Namespaces.Peer.CloudChannel,
+            id: EnginePeer.Id.Id._internalFromInt64Value(source.channelId)
+        )
+        messageIds.append(MessageId(peerId: peerId, namespace: Namespaces.Message.Cloud, id: source.messageId))
+    }
+    guard !messageIds.isEmpty else {
+        return .single(nil)
+    }
+
+    return context.engine.messages.getMessagesLoadIfNecessary(messageIds, strategy: .cloud(skipLocal: false))
+    |> mapToSignal { result -> Signal<Data?, GetMessagesError> in
+        switch result {
+        case .progress:
+            return .never()
+        case let .result(messages):
+            for message in messages {
+                if let file = message.media.compactMap({ $0 as? TelegramMediaFile }).first,
+                   let data = file.immediateThumbnailData {
+                    return .single(data)
+                }
+                if let image = message.media.compactMap({ $0 as? TelegramMediaImage }).first,
+                   let data = image.immediateThumbnailData {
+                    return .single(data)
+                }
+            }
+            return .single(nil)
+        }
+    }
+    |> `catch` { _ -> Signal<Data?, NoError> in
+        return .single(nil)
+    }
 }
 
 private func fluxgramDownloadNotificationText(previous: FluxgramNASDownloadsSnapshot, current: FluxgramNASDownloadsSnapshot) -> (text: String, destructive: Bool)? {
@@ -91,22 +312,27 @@ private enum FluxgramDownloadsEntry: ItemListNodeEntry {
     case pendingHeader
     case pendingSummary(Int)
     case pending(Int, FluxgramNASSubmission)
-    case activeHeader
-    case active(Int, FluxgramNASDownloadJob)
+    case activeHeader(String, [String], Int)
+    case activeSummary(String)
+    case clearUnfinished
+    case active(Int, FluxgramNASDownloadJob, Int64?, Data?)
     case historyHeader
+    case historySummary(String)
     case retryFailed(Int)
-    case history(Int, FluxgramNASDownloadJob)
+    case history(Int, FluxgramNASDownloadJob, Int64?, Data?)
+    case historyLoadMore
     case status(String)
+    case storage(String)
 
     var section: ItemListSectionId {
         switch self {
         case .pendingHeader, .pendingSummary, .pending:
             return FluxgramDownloadsSection.pending.rawValue
-        case .activeHeader, .active:
+        case .activeHeader, .activeSummary, .clearUnfinished, .active:
             return FluxgramDownloadsSection.active.rawValue
-        case .historyHeader, .retryFailed, .history:
+        case .historyHeader, .historySummary, .retryFailed, .history, .historyLoadMore:
             return FluxgramDownloadsSection.history.rawValue
-        case .status:
+        case .status, .storage:
             return FluxgramDownloadsSection.status.rawValue
         }
     }
@@ -125,16 +351,26 @@ private enum FluxgramDownloadsEntry: ItemListNodeEntry {
             return fluxgramStableHash(identifier, namespace: 1_200_000_000)
         case .activeHeader:
             return 2
-        case let .active(index, job):
+        case .activeSummary:
+            return 3
+        case .clearUnfinished:
+            return 4
+        case let .active(index, job, _, _):
             return fluxgramDownloadStableId(job, namespace: 100_000, index: index)
         case .historyHeader:
             return 10_000
-        case .retryFailed:
+        case .historySummary:
             return 10_001
-        case let .history(index, job):
+        case .retryFailed:
+            return 10_002
+        case let .history(index, job, _, _):
             return fluxgramDownloadStableId(job, namespace: 600_000_000, index: index)
+        case .historyLoadMore:
+            return 10_003
         case .status:
             return 20_000
+        case .storage:
+            return 20_001
         }
     }
 
@@ -149,16 +385,26 @@ private enum FluxgramDownloadsEntry: ItemListNodeEntry {
                 return (FluxgramDownloadsSection.pending.rawValue, index + 2)
             case .activeHeader:
                 return (FluxgramDownloadsSection.active.rawValue, 0)
-            case let .active(index, _):
-                return (FluxgramDownloadsSection.active.rawValue, index + 1)
+            case .activeSummary:
+                return (FluxgramDownloadsSection.active.rawValue, 1)
+            case .clearUnfinished:
+                return (FluxgramDownloadsSection.active.rawValue, 2)
+            case let .active(index, _, _, _):
+                return (FluxgramDownloadsSection.active.rawValue, index + 3)
             case .historyHeader:
                 return (FluxgramDownloadsSection.history.rawValue, 0)
-            case .retryFailed:
+            case .historySummary:
                 return (FluxgramDownloadsSection.history.rawValue, 1)
-            case let .history(index, _):
-                return (FluxgramDownloadsSection.history.rawValue, index + 2)
-            case .status:
-                return (FluxgramDownloadsSection.status.rawValue, 0)
+            case .retryFailed:
+                return (FluxgramDownloadsSection.history.rawValue, 2)
+            case let .history(index, _, _, _):
+                return (FluxgramDownloadsSection.history.rawValue, index + 3)
+            case .historyLoadMore:
+                return (FluxgramDownloadsSection.history.rawValue, 100_003)
+        case .status:
+            return (FluxgramDownloadsSection.status.rawValue, 0)
+        case .storage:
+            return (FluxgramDownloadsSection.status.rawValue, 1)
             }
         }
         let lhsOrder = order(lhs)
@@ -195,6 +441,9 @@ private enum FluxgramDownloadsEntry: ItemListNodeEntry {
             var details: [String] = [submission.options.downloadSubdir.isEmpty ? "NAS 根目录" : submission.options.downloadSubdir]
             if submission.attemptCount > 0 {
                 details.append("已尝试 \(submission.attemptCount) 次")
+                if submission.attemptCount >= 5 {
+                    details.append("自动重试已暂停，请手动重试")
+                }
             }
             if !submission.displayError.isEmpty {
                 details.append(submission.displayError)
@@ -213,38 +462,68 @@ private enum FluxgramDownloadsEntry: ItemListNodeEntry {
                     arguments.retryPending(submission)
                 }
             )
-        case .activeHeader:
-            return ItemListSectionHeaderItem(presentationData: presentationData, text: "NAS 下载", sectionId: self.section)
-        case let .active(_, job):
-            return ItemListDisclosureItem(
+        case let .activeHeader(summary, filters, selectedFilter):
+            return FluxgramDownloadHeaderItem(
                 presentationData: presentationData,
-                systemStyle: fluxgramItemListSystemStyle,
-                title: job.title,
-                label: job.detail,
-                labelStyle: .multilineDetailText,
+                summary: summary,
+                filters: filters,
+                selectedFilter: selectedFilter,
                 sectionId: self.section,
-                style: .blocks,
-                disclosureStyle: .none,
-                action: {
-                    arguments.showJob(job, true)
-                }
+                selectFilter: arguments.selectFilter
             )
-        case let .history(_, job):
-            return ItemListDisclosureItem(
+        case let .activeSummary(text):
+            return ItemListTextItem(presentationData: presentationData, text: .plain(text), sectionId: self.section)
+        case .clearUnfinished:
+            return ItemListActionItem(
                 presentationData: presentationData,
                 systemStyle: fluxgramItemListSystemStyle,
-                title: job.title,
-                label: job.detail,
-                labelStyle: .multilineDetailText,
+                title: "清空未完成任务",
+                kind: .destructive,
+                alignment: .natural,
                 sectionId: self.section,
                 style: .blocks,
-                disclosureStyle: .none,
+                action: { arguments.clearUnfinished() }
+            )
+        case let .active(_, job, speed, thumbnailData):
+            let failed = ["failed", "error"].contains(job.status.lowercased())
+            return FluxgramDownloadCardItem(
+                presentationData: presentationData,
+                job: job,
+                thumbnailData: thumbnailData,
+                speed: speed,
+                sectionId: self.section,
+                cardAction: { arguments.showJob(job, !failed) },
+                primaryAction: { arguments.primaryAction(job, true) },
+                moreAction: { arguments.showJob(job, !failed) }
+            )
+        case let .history(_, job, speed, thumbnailData):
+            return FluxgramDownloadCardItem(
+                presentationData: presentationData,
+                job: job,
+                thumbnailData: thumbnailData,
+                speed: speed,
+                sectionId: self.section,
+                cardAction: { arguments.showJob(job, false) },
+                primaryAction: { arguments.primaryAction(job, false) },
+                moreAction: { arguments.showJob(job, false) }
+            )
+        case .historyLoadMore:
+            return ItemListActionItem(
+                presentationData: presentationData,
+                systemStyle: fluxgramItemListSystemStyle,
+                title: "加载更多历史记录",
+                kind: .generic,
+                alignment: .center,
+                sectionId: self.section,
+                style: .blocks,
                 action: {
-                    arguments.showJob(job, false)
+                    arguments.loadMoreHistory()
                 }
             )
         case .historyHeader:
             return ItemListSectionHeaderItem(presentationData: presentationData, text: "最近记录", sectionId: self.section)
+        case let .historySummary(text):
+            return ItemListTextItem(presentationData: presentationData, text: .plain(text), sectionId: self.section)
         case let .retryFailed(count):
             return ItemListActionItem(
                 presentationData: presentationData,
@@ -260,6 +539,8 @@ private enum FluxgramDownloadsEntry: ItemListNodeEntry {
             )
         case let .status(message):
             return ItemListTextItem(presentationData: presentationData, text: .plain(message), sectionId: self.section)
+        case let .storage(message):
+            return ItemListTextItem(presentationData: presentationData, text: .plain(message), sectionId: self.section)
         }
     }
 }
@@ -267,34 +548,210 @@ private enum FluxgramDownloadsEntry: ItemListNodeEntry {
 private final class FluxgramDownloadsControllerArguments {
     let retryPending: (FluxgramNASSubmission?) -> Void
     let retryFailed: () -> Void
+    let clearUnfinished: () -> Void
+    let loadMoreHistory: () -> Void
     let showJob: (FluxgramNASDownloadJob, Bool) -> Void
+    let primaryAction: (FluxgramNASDownloadJob, Bool) -> Void
+    let selectFilter: (Int) -> Void
 
-    init(retryPending: @escaping (FluxgramNASSubmission?) -> Void, retryFailed: @escaping () -> Void, showJob: @escaping (FluxgramNASDownloadJob, Bool) -> Void) {
+    init(retryPending: @escaping (FluxgramNASSubmission?) -> Void, retryFailed: @escaping () -> Void, clearUnfinished: @escaping () -> Void, loadMoreHistory: @escaping () -> Void, showJob: @escaping (FluxgramNASDownloadJob, Bool) -> Void, primaryAction: @escaping (FluxgramNASDownloadJob, Bool) -> Void, selectFilter: @escaping (Int) -> Void) {
         self.retryPending = retryPending
         self.retryFailed = retryFailed
+        self.clearUnfinished = clearUnfinished
+        self.loadMoreHistory = loadMoreHistory
         self.showJob = showJob
+        self.primaryAction = primaryAction
+        self.selectFilter = selectFilter
     }
 }
 
-private func fluxgramDownloadsEntries(state: FluxgramDownloadsControllerState) -> [FluxgramDownloadsEntry] {
-    var entries: [FluxgramDownloadsEntry] = [
-        .pendingHeader,
-        .pendingSummary(state.pending.count)
-    ]
-    entries.append(contentsOf: state.pending.enumerated().map { .pending($0.offset, $0.element) })
-    entries.append(.activeHeader)
-    entries.append(contentsOf: state.active.enumerated().map { .active($0.offset, $0.element) })
-    entries.append(.historyHeader)
-    let failedCount = state.history.filter { ["failed", "error"].contains($0.status.lowercased()) }.count
-    if failedCount > 0 {
-        entries.append(.retryFailed(failedCount))
+func fluxgramDownloadSpeedText(_ bytesPerSecond: Int64?) -> String? {
+    guard let bytesPerSecond, bytesPerSecond > 0 else {
+        return nil
     }
-    entries.append(contentsOf: state.history.enumerated().map { .history($0.offset, $0.element) })
+    let value = Double(bytesPerSecond)
+    if value >= 1024.0 * 1024.0 {
+        return String(format: "%.1f MB/s", value / (1024.0 * 1024.0))
+    } else if value >= 1024.0 {
+        return String(format: "%.0f KB/s", value / 1024.0)
+    } else {
+        return String(bytesPerSecond) + " B/s"
+    }
+}
+
+func fluxgramDownloadThumbnail(_ data: Data?) -> UIImage? {
+    guard let data else { return nil }
+    // Telegram's immediateThumbnailData is a compact TinyThumbnail payload,
+    // not a directly decodable JPEG. Accept ordinary image data as a fallback
+    // for backend-generated previews and older records.
+    if let decoded = decodeTinyThumbnail(data: data), let image = UIImage(data: decoded) {
+        return image
+    }
+    return UIImage(data: data)
+}
+
+func fluxgramDownloadPlaceholderIcon(job: FluxgramNASDownloadJob) -> UIImage? {
+    let status = job.status.lowercased()
+    let symbol: String
+    let color: UIColor
+    if ["failed", "error"].contains(status) {
+        symbol = "exclamationmark.circle.fill"; color = .systemRed
+    } else if ["done", "completed", "complete", "finished", "success"].contains(status) {
+        symbol = "checkmark.circle.fill"; color = .systemGreen
+    } else if ["queued", "queue", "pending", "waiting", "submitted", "retrying"].contains(status) {
+        symbol = "clock.fill"; color = .systemOrange
+    } else {
+        let ext = (job.fileName as NSString).pathExtension.lowercased()
+        symbol = ["mp4", "mov", "mkv", "avi", "m4v"].contains(ext) ? "video.fill" : "doc.fill"
+        color = .systemGray
+    }
+    return UIImage(systemName: symbol)?.withTintColor(color, renderingMode: .alwaysOriginal)
+}
+
+private func fluxgramDownloadDetail(job: FluxgramNASDownloadJob, speed: Int64?) -> String {
+    let status = job.status.lowercased()
+    let statusText: String
+    switch status {
+    case "queued", "queue", "pending", "waiting", "submitted": statusText = "排队中"
+    case "retrying": statusText = "重试中"
+    case "failed", "error": statusText = "失败：\(job.error.isEmpty ? "未知错误" : job.error)"
+    case "done", "completed", "complete", "finished", "success": statusText = "已完成"
+    case "cancelled", "canceled": statusText = "已取消"
+    default: statusText = "下载中"
+    }
+    var detail = statusText
+    if !job.fileName.isEmpty {
+        let ext = (job.fileName as NSString).pathExtension.uppercased()
+        if !ext.isEmpty {
+            detail += " · \(ext)"
+        }
+    }
+    if job.total > 0 {
+        detail += " · \(fluxgramDownloadByteCount(job.total))"
+    }
+    if job.total > 0 {
+        let percent = min(100, max(0, Int((Double(job.received) / Double(job.total)) * 100.0)))
+        detail += " · \(percent)%"
+    }
+    detail += "\n" + job.detail
+    if !job.sourceLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        detail += "\n来源：" + job.sourceLabel
+    }
+    let terminalStatuses = ["done", "completed", "complete", "finished", "success", "failed", "error", "cancelled", "canceled"]
+    let waitingStatuses = ["queued", "queue", "pending", "waiting", "submitted", "retrying"]
+    if !terminalStatuses.contains(status) && !waitingStatuses.contains(status) {
+        detail += "\n速度：" + (fluxgramDownloadSpeedText(speed) ?? "测速中")
+        if job.total > 0 {
+            detail += " · " + fluxgramDownloadByteCount(job.received) + "/" + fluxgramDownloadByteCount(job.total)
+        }
+    } else if status == "failed" || status == "error" {
+        detail += "\n点击任务可查看详情并重试"
+    }
+    return detail
+}
+
+func fluxgramDownloadByteCount(_ bytes: Int64) -> String {
+    let units = ["B", "KB", "MB", "GB", "TB"]
+    var value = Double(max(0, bytes))
+    var index = 0
+    while value >= 1024.0 && index < units.count - 1 {
+        value /= 1024.0
+        index += 1
+    }
+    return value >= 10 || index == 0 ? String(format: "%.0f %@", value, units[index]) : String(format: "%.1f %@", value, units[index])
+}
+
+private func fluxgramDownloadSummary(_ jobs: [FluxgramNASDownloadJob]) -> String {
+    guard !jobs.isEmpty else { return "当前没有正在处理的任务。" }
+    let waiting = jobs.filter { ["queued", "queue", "pending", "waiting", "submitted", "retrying"].contains($0.status.lowercased()) }.count
+    let downloading = jobs.count - waiting
+    var parts: [String] = []
+    if downloading > 0 { parts.append("\(downloading) 个处理中") }
+    if waiting > 0 { parts.append("\(waiting) 个排队") }
+    return parts.isEmpty ? "没有正在处理的任务" : parts.joined(separator: " · ")
+}
+
+private func fluxgramHistorySummary(_ jobs: [FluxgramNASDownloadJob]) -> String {
+    guard !jobs.isEmpty else { return "还没有完成或失败的记录。" }
+    let failed = jobs.filter { ["failed", "error"].contains($0.status.lowercased()) }.count
+    let completed = jobs.filter { ["completed", "complete", "finished", "success", "done"].contains($0.status.lowercased()) }.count
+    var parts = ["共 \(jobs.count) 条记录"]
+    if completed > 0 { parts.append("\(completed) 条已完成") }
+    if failed > 0 { parts.append("\(failed) 条失败") }
+    return parts.joined(separator: " · ")
+}
+
+private func fluxgramDownloadsEntries(state: FluxgramDownloadsControllerState) -> [FluxgramDownloadsEntry] {
+    let activeStatuses: Set<String> = ["downloading", "running", "copying", "progressing"]
+    let pausedStatuses: Set<String> = ["paused", "suspended"]
+    let activeCount = state.active.filter { activeStatuses.contains($0.status.lowercased()) }.count
+    let completedCount = state.history.filter { ["completed", "complete", "finished", "success", "done"].contains($0.status.lowercased()) }.count
+    let headerSummary = "\(activeCount) 个任务下载中 · \(completedCount) 个已完成"
+    let pausedCount = state.active.filter { pausedStatuses.contains($0.status.lowercased()) }.count
+    let filters = [
+        "全部 \(state.active.count + state.history.count)",
+        "下载中 \(activeCount)",
+        "已完成 \(completedCount)",
+        "已暂停 \(pausedCount)"
+    ]
+    let selectedFilter: Int
+    switch state.filter {
+    case .all: selectedFilter = 0
+    case .active: selectedFilter = 1
+    case .completed: selectedFilter = 2
+    case .waiting: selectedFilter = 3
+    case .failed: selectedFilter = 0
+    }
+    var entries: [FluxgramDownloadsEntry] = [.activeHeader(headerSummary, filters, selectedFilter)]
+    let filteredActive = state.active.filter { job in
+        let status = job.status.lowercased()
+        switch state.filter {
+        case .all: return true
+        case .active: return activeStatuses.contains(status)
+        case .waiting: return pausedStatuses.contains(status)
+        case .completed, .failed: return false
+        }
+    }
+    let activeJobs = filteredActive.sorted { lhs, rhs in
+        let waiting: Set<String> = ["queued", "queue", "pending", "waiting", "submitted", "retrying"]
+        let leftWaiting = waiting.contains(lhs.status.lowercased())
+        let rightWaiting = waiting.contains(rhs.status.lowercased())
+        if leftWaiting != rightWaiting { return !leftWaiting }
+        return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+    }
+    entries.append(contentsOf: activeJobs.enumerated().map { item in
+        .active(item.offset, item.element, state.speeds[fluxgramDownloadNotificationKey(item.element)], state.thumbnails[fluxgramDownloadThumbnailKey(item.element)])
+    })
+    if !state.pending.isEmpty {
+        entries.append(.pendingSummary(state.pending.count))
+        entries.append(contentsOf: state.pending.enumerated().map { .pending($0.offset, $0.element) })
+    }
+    let failedCount = state.history.filter { ["failed", "error"].contains($0.status.lowercased()) }.count
+    if failedCount > 0 { entries.append(.retryFailed(failedCount)) }
+    let filteredHistory = state.history.filter { job in
+        let status = job.status.lowercased()
+        switch state.filter {
+        case .all: return true
+        case .completed: return ["completed", "complete", "finished", "success", "done"].contains(status)
+        case .failed: return ["failed", "error"].contains(status)
+        case .active, .waiting: return false
+        }
+    }
+    entries.append(contentsOf: filteredHistory.enumerated().map { item in
+        .history(item.offset, item.element, state.speeds[fluxgramDownloadNotificationKey(item.element)], state.thumbnails[fluxgramDownloadThumbnailKey(item.element)])
+    })
+    if state.history.count >= state.historyLimit, state.historyLimit < 200 {
+        entries.append(.historyLoadMore)
+    }
     if state.active.isEmpty && state.history.isEmpty {
         entries.append(.status(state.error.isEmpty ? "暂时没有 NAS 下载任务。" : state.error))
     } else if !state.error.isEmpty {
         entries.append(.status(state.error))
     }
+    // Keep a compact storage/status footer in the same page. The NAS API does
+    // not currently expose quota information, so we intentionally avoid
+    // inventing a percentage and present an honest availability message.
+    entries.append(.storage("存储空间\nNAS 容量信息由服务器提供，当前未返回可用配额。"))
     return entries
 }
 
@@ -304,15 +761,43 @@ public func fluxgramDownloadsController(context: AccountContext) -> ViewControll
         active: [],
         history: [],
         pending: [],
-        error: ""
+        error: "",
+        speeds: [:],
+        thumbnails: [:],
+        historyLimit: 30,
+        filter: .all
     )
     let stateValue = Atomic(value: initialState)
     let statePromise = ValuePromise(initialState, ignoreRepeated: true)
     let isRefreshing = Atomic(value: false)
     var previousSnapshot: FluxgramNASDownloadsSnapshot?
+    var speedSamples: [String: (received: Int64, timestamp: TimeInterval)] = [:]
+    var sourceMessageDisposable: Disposable?
+    var thumbnailDisposables: [Disposable] = []
+    var requestedThumbnailKeys = Set<String>()
     var refreshGeneration = 0
     let updateState: ((FluxgramDownloadsControllerState) -> FluxgramDownloadsControllerState) -> Void = { f in
         statePromise.set(stateValue.modify { f($0) })
+    }
+
+    let requestMissingThumbnails: ([FluxgramNASDownloadJob]) -> Void = { jobs in
+        let cachedKeys = stateValue.with { Set($0.thumbnails.keys) }
+        for job in jobs.prefix(30) where job.thumbnailData == nil {
+            let key = fluxgramDownloadThumbnailKey(job)
+            guard !cachedKeys.contains(key), requestedThumbnailKeys.insert(key).inserted else {
+                continue
+            }
+            let disposable = (fluxgramLocalDownloadThumbnail(context: context, job: job)
+            |> deliverOnMainQueue).start(next: { data in
+                guard let data else { return }
+                updateState { state in
+                    var state = state
+                    state.thumbnails[key] = data
+                    return state
+                }
+            })
+            thumbnailDisposables.append(disposable)
+        }
     }
 
     var controller: ItemListController?
@@ -366,16 +851,34 @@ public func fluxgramDownloadsController(context: AccountContext) -> ViewControll
             }
             finishRequest()
         }
-        service.fetchDownloadsIncrementally(includeHistory: includeHistory) { update in
+        let historyLimit = stateValue.with { $0.historyLimit }
+        service.fetchDownloadsIncrementally(includeHistory: includeHistory, historyLimit: historyLimit) { update in
             guard generation == refreshGeneration else {
                 return
             }
             switch update {
             case let .active(jobs):
+                requestMissingThumbnails(jobs)
+                let now = Date().timeIntervalSinceReferenceDate
+                var measuredSpeeds: [String: Int64] = [:]
+                for job in jobs {
+                    let key = fluxgramDownloadNotificationKey(job)
+                    if let previous = speedSamples[key] {
+                        let elapsed = now - previous.timestamp
+                        let delta = job.received - previous.received
+                        if elapsed >= 0.5, delta >= 0 {
+                            measuredSpeeds[key] = Int64(Double(delta) / elapsed)
+                        }
+                    }
+                    speedSamples[key] = (job.received, now)
+                }
                 updateState { state in
                     var state = state
                     state.active = jobs
                     state.error = ""
+                    for (key, speed) in measuredSpeeds {
+                        state.speeds[key] = speed
+                    }
                     return state
                 }
             case let .activeOnlyFinished(jobs):
@@ -387,6 +890,7 @@ public func fluxgramDownloadsController(context: AccountContext) -> ViewControll
                 previousSnapshot = snapshot
                 finishRequest()
             case let .history(jobs):
+                requestMissingThumbnails(jobs)
                 updateState { state in
                     var state = state
                     state.history = jobs
@@ -436,6 +940,39 @@ public func fluxgramDownloadsController(context: AccountContext) -> ViewControll
                 refresh(true)
             }
         }
+    }, clearUnfinished: {
+        let presentationData = context.sharedContext.currentPresentationData.with { $0 }
+        controller?.present(
+            standardTextAlertController(
+                theme: AlertControllerTheme(presentationData: presentationData),
+                title: "清空未完成任务？",
+                text: "将取消 NAS 中所有进行中任务，并删除手机本地待提交队列。已完成记录会保留。",
+                actions: [
+                    TextAlertAction(type: .genericAction, title: "取消", action: {}),
+                    TextAlertAction(type: .destructiveAction, title: "清空", action: {
+                        service.clearUnfinishedDownloads { cancelled, pending, error in
+                            var message = "已取消 NAS 任务：\(cancelled) 个\n已清除本地待提交：\(pending) 个"
+                            if let error, !error.isEmpty {
+                                message += "\n\n部分任务未能取消：\(error)"
+                            }
+                            presentAlert(message)
+                            refresh(true)
+                        }
+                    })
+                ]
+            ),
+            in: .window(.root)
+        )
+    }, loadMoreHistory: {
+        guard !(isRefreshing.with { $0 }) else {
+            return
+        }
+        updateState { state in
+            var state = state
+            state.historyLimit = min(state.historyLimit + 50, 200)
+            return state
+        }
+        refresh(true)
     }, showJob: { job, isActive in
         let presentationData = context.sharedContext.currentPresentationData.with { $0 }
         let actionSheet = ActionSheetController(presentationData: presentationData)
@@ -443,13 +980,50 @@ public func fluxgramDownloadsController(context: AccountContext) -> ViewControll
             ActionSheetTextItem(title: job.title + "\n\n" + job.detailText)
         ]
 
-        if job.hasSourceMessage, let dialogId = job.sourceDialogId,
-           let messageId = job.sourceRootMessageId ?? job.sourceMessageId {
+        if job.hasSourceMessage {
             actions.append(ActionSheetButtonItem(title: "打开原消息", color: .accent, action: { [weak actionSheet] in
                 actionSheet?.dismissAnimated()
-                let peerId = EnginePeer.Id(dialogId)
+                sourceMessageDisposable?.dispose()
+                sourceMessageDisposable = (fluxgramOriginalMessageTarget(context: context, job: job)
+                |> deliverOnMainQueue).start(next: { target in
+                    guard let target else {
+                        presentAlert("找不到这条消息。它可能已被删除，或来源频道开启了转发隐私。")
+                        return
+                    }
+                    context.sharedContext.navigateToChat(accountId: context.account.id, peerId: target.peerId, messageId: target.messageId)
+                })
+            }))
+        } else if let privateChannelMessage = fluxgramPrivateChannelMessage(for: job) {
+            actions.append(ActionSheetButtonItem(title: "打开原消息", color: .accent, action: { [weak actionSheet] in
+                actionSheet?.dismissAnimated()
+                let channelId = privateChannelMessage.channelId
+                let messageId = privateChannelMessage.messageId
+                let peerId = EnginePeer.Id(namespace: Namespaces.Peer.CloudChannel, id: EnginePeer.Id.Id._internalFromInt64Value(channelId))
                 let targetMessageId = EngineMessage.Id(peerId: peerId, namespace: Namespaces.Message.Cloud, id: messageId)
-                context.sharedContext.navigateToChat(accountId: context.account.id, peerId: peerId, messageId: targetMessageId)
+                sourceMessageDisposable?.dispose()
+                sourceMessageDisposable = (context.engine.peers.findChannelById(channelId: channelId)
+                |> deliverOnMainQueue).start(next: { peer in
+                    guard peer != nil else {
+                        presentAlert("找不到该频道。请先在 Telegram 中打开一次此聊天，再重试。")
+                        return
+                    }
+                    context.sharedContext.navigateToChat(accountId: context.account.id, peerId: peerId, messageId: targetMessageId)
+                })
+            }))
+        } else if !job.sourceUrl.isEmpty {
+            // Older NAS jobs only have the original t.me link. Let Telegram's
+            // normal URL resolver locate the private channel and message.
+            actions.append(ActionSheetButtonItem(title: "打开原消息", color: .accent, action: { [weak actionSheet] in
+                actionSheet?.dismissAnimated()
+                context.sharedContext.openExternalUrl(
+                    context: context,
+                    urlContext: .generic,
+                    url: job.sourceUrl,
+                    forceExternal: false,
+                    presentationData: presentationData,
+                    navigationController: nil,
+                    dismissInput: {}
+                )
             }))
         }
 
@@ -468,20 +1042,42 @@ public func fluxgramDownloadsController(context: AccountContext) -> ViewControll
             }))
         }
 
-        if isActive, !job.id.isEmpty {
-            actions.append(ActionSheetButtonItem(title: "取消下载", color: .destructive, action: { [weak actionSheet] in
+        if !job.id.isEmpty {
+            actions.append(ActionSheetButtonItem(title: "删除记录", color: .destructive, action: { [weak actionSheet] in
                 actionSheet?.dismissAnimated()
-                service.cancelDownload(jobId: job.id) { success, message in
+                let confirmation = standardTextAlertController(
+                    theme: AlertControllerTheme(presentationData: presentationData),
+                    title: "删除此任务？",
+                    text: isActive ? "将停止任务并删除未完成的临时文件。" : "仅删除任务记录，NAS 中已完成的媒体文件会保留。",
+                    actions: [
+                        TextAlertAction(type: .defaultAction, title: "取消", action: {}),
+                        TextAlertAction(type: .destructiveAction, title: "删除", action: {
+                            service.deleteDownload(jobId: job.id) { success, message in
+                                presentAlert(message)
+                                if success { refresh(true) }
+                            }
+                        })
+                    ]
+                )
+                controller?.present(confirmation, in: .window(.root))
+            }))
+        }
+
+        let isFailed = ["failed", "error"].contains(job.status.lowercased())
+        if isFailed {
+            actions.append(ActionSheetButtonItem(title: "重试失败任务", color: .accent, action: { [weak actionSheet] in
+                actionSheet?.dismissAnimated()
+                service.retryProblemDownloads { success, message in
                     presentAlert(message)
                     if success {
                         refresh(true)
                     }
                 }
             }))
-        } else if ["failed", "error"].contains(job.status.lowercased()) {
-            actions.append(ActionSheetButtonItem(title: "重试失败任务", color: .accent, action: { [weak actionSheet] in
+        } else if isActive, !job.id.isEmpty {
+            actions.append(ActionSheetButtonItem(title: "取消下载", color: .destructive, action: { [weak actionSheet] in
                 actionSheet?.dismissAnimated()
-                service.retryProblemDownloads { success, message in
+                service.cancelDownload(jobId: job.id) { success, message in
                     presentAlert(message)
                     if success {
                         refresh(true)
@@ -499,19 +1095,50 @@ public func fluxgramDownloadsController(context: AccountContext) -> ViewControll
             ])
         ])
         controller?.present(actionSheet, in: .window(.root))
+    }, primaryAction: { job, isActive in
+        let status = job.status.lowercased()
+        if ["failed", "error", "cancelled", "canceled"].contains(status) {
+            service.retryDownload(jobId: job.id) { success, message in
+                presentAlert(message)
+                if success { refresh(true) }
+            }
+        } else if ["paused", "suspended"].contains(status) || ["queued", "queue", "pending", "waiting", "submitted"].contains(status) {
+            service.resumeDownload(jobId: job.id) { success, message in
+                presentAlert(message)
+                if success { refresh(true) }
+            }
+        } else if ["downloading", "running", "copying", "progressing"].contains(status) {
+            service.pauseDownload(jobId: job.id) { success, message in
+                presentAlert(message)
+                if success { refresh(true) }
+            }
+        } else if !isActive, let path = job.outputFile.isEmpty ? nil : URL(fileURLWithPath: job.outputFile).deletingLastPathComponent().path {
+            presentAlert("文件已保存到：\n\(path)")
+        }
+    }, selectFilter: { index in
+        let filters: [FluxgramDownloadsFilter] = [.all, .active, .completed, .waiting]
+        guard filters.indices.contains(index) else { return }
+        updateState { state in
+            var state = state
+            state.filter = filters[index]
+            return state
+        }
     })
 
     let signal = combineLatest(context.sharedContext.presentationData, statePromise.get())
     |> deliverOnMainQueue
     |> map { presentationData, state -> (ItemListControllerState, (ItemListNodeState, FluxgramDownloadsControllerArguments)) in
-        let rightNavigationButton = ItemListNavigationButton(content: .text("刷新"), style: .regular, enabled: true, action: {
-            refresh(true)
+        // This screen is presented modally from the download form. A
+        // backNavigationButton only affects a navigation-stack back item, so
+        // provide an explicit dismiss action in the navigation bar.
+        let leftNavigationButton = ItemListNavigationButton(content: .icon(.close), style: .regular, enabled: true, action: {
+            let _ = controller?.dismiss()
         })
         let controllerState = ItemListControllerState(
             presentationData: ItemListPresentationData(presentationData),
-            title: .text("NAS 下载"),
-            leftNavigationButton: nil,
-            rightNavigationButton: rightNavigationButton,
+            title: .text(""),
+            leftNavigationButton: leftNavigationButton,
+            rightNavigationButton: nil,
             backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back),
             animateChanges: true
         )
@@ -530,21 +1157,25 @@ public func fluxgramDownloadsController(context: AccountContext) -> ViewControll
     var refreshTimer: SwiftSignalKit.Timer?
     var lightweightRefreshCount = 0
     result.didAppear = { _ in
-        // Retrying is intentionally scoped to this screen so normal chat
-        // navigation never competes with a backlog of NAS submissions.
+        // Status inspection must remain read-only. Pending local submissions
+        // are shown above and only leave the phone after the user explicitly
+        // taps a retry action, so opening this screen never changes the NAS
+        // queue or competes with an in-progress download.
         refresh(true)
-        service.retryPendingDownloads(automatic: true) { _, _ in
-            refresh(true)
-        }
         guard refreshTimer == nil else {
             return
         }
         let timer = SwiftSignalKit.Timer(timeout: 4.0, repeat: true, completion: {
-            // Active cards update frequently. History is sampled periodically
-            // as well so a completed task does not disappear from the list
-            // until the user performs a manual refresh.
+            // Only active cards are polled automatically. History is a much
+            // heavier, mostly immutable list; it is loaded on entry and when
+            // the user explicitly taps Refresh. This keeps large histories
+            // from being downloaded and diffed every few seconds.
             lightweightRefreshCount += 1
-            refresh(lightweightRefreshCount % 3 == 0)
+            refresh(false)
+            // As active NAS slots free up, admit the next small batch from
+            // the phone queue. The service checks the server's active count
+            // before submitting, so this does not add pressure to a full NAS.
+            service.retryPendingDownloads(automatic: true)
         }, queue: Queue.mainQueue())
         refreshTimer = timer
         timer.start()
@@ -552,6 +1183,10 @@ public func fluxgramDownloadsController(context: AccountContext) -> ViewControll
     result.willDisappear = { _ in
         refreshGeneration += 1
         _ = isRefreshing.swap(false)
+        sourceMessageDisposable?.dispose()
+        sourceMessageDisposable = nil
+        thumbnailDisposables.forEach { $0.dispose() }
+        thumbnailDisposables.removeAll()
         lightweightRefreshCount = 0
         refreshTimer?.invalidate()
         refreshTimer = nil

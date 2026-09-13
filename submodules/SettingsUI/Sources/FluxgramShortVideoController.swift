@@ -571,12 +571,32 @@ public func fluxgramShortVideoController(context: AccountContext) -> ViewControl
             FluxgramShortVideoPlaybackHistory.markPlayed(message)
         }
         feed.downloadRequested = { [weak feed] message in
+            let downloadRequest = FluxgramNASDownloadRequest(
+                dialogId: message.id.peerId.toInt64(),
+                messageId: message.id.id,
+                directDocument: fluxgramShortVideoDirectDocument(message: message),
+                sourceLabel: message.peers[message.id.peerId]?.debugDisplayTitle ?? "",
+                sourceText: message.text,
+                thumbnailData: message.media.compactMap({ media -> Data? in
+                    if let file = media as? TelegramMediaFile {
+                        return file.immediateThumbnailData
+                    }
+                    if let image = media as? TelegramMediaImage {
+                        return image.immediateThumbnailData
+                    }
+                    return nil
+                }).first,
+                isVideo: true
+            )
             fluxgramDownloadFolderActionSheet(
                 context: context,
                 dialogId: message.id.peerId.toInt64(),
                 messageId: message.id.id,
                 peerAccessHash: nil,
                 directDocument: fluxgramShortVideoDirectDocument(message: message),
+                downloadRequests: [downloadRequest],
+                sourceLabel: message.peers[message.id.peerId]?.debugDisplayTitle ?? "",
+                sourceText: message.text,
                 present: { controller in
                     feed?.present(controller, in: .window(.root))
                 }
