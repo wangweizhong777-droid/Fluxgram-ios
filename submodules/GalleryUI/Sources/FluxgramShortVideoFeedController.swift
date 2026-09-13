@@ -77,6 +77,9 @@ private final class FluxgramShortVideoCell: UICollectionViewCell {
     private let muteButton = UIButton(type: .system)
     private let downloadButton = UIButton(type: .system)
     private let sourceButton = UIButton(type: .system)
+    private let actionLabels = ["原消息", "下载", "音量"]
+    private var actionTextLabels: [UILabel] = []
+    private let avatarView = UIImageView()
     private let progressSlider = UISlider()
     private let activityIndicator = UIActivityIndicatorView(style: .large)
     private var videoNode: UniversalVideoNode?
@@ -152,6 +155,21 @@ private final class FluxgramShortVideoCell: UICollectionViewCell {
         self.sourceButton.accessibilityLabel = "打开原消息"
         self.sourceButton.addTarget(self, action: #selector(self.sourceMessagePressed), for: .touchUpInside)
         self.contentView.addSubview(self.sourceButton)
+        self.avatarView.backgroundColor = UIColor.white.withAlphaComponent(0.18)
+        self.avatarView.layer.cornerRadius = 24
+        self.avatarView.clipsToBounds = true
+        self.avatarView.image = UIImage(systemName: "person.2.fill")
+        self.avatarView.tintColor = .white
+        self.contentView.addSubview(self.avatarView)
+        for title in self.actionLabels {
+            let label = UILabel()
+            label.text = title
+            label.textColor = UIColor.white.withAlphaComponent(0.86)
+            label.font = UIFont.systemFont(ofSize: 12, weight: .semibold)
+            label.textAlignment = .center
+            self.contentView.addSubview(label)
+            self.actionTextLabels.append(label)
+        }
 
         self.activityIndicator.color = .white
         self.activityIndicator.hidesWhenStopped = true
@@ -199,14 +217,18 @@ private final class FluxgramShortVideoCell: UICollectionViewCell {
 
         let safeBottom = self.safeAreaInsets.bottom
         let bottom = self.contentView.bounds.height - safeBottom - 18.0
-        self.progressSlider.frame = CGRect(x: 16.0, y: bottom - 18.0, width: self.contentView.bounds.width - 32.0, height: 22.0)
-        self.captionLabel.frame = CGRect(x: 18.0, y: bottom - 72.0, width: self.contentView.bounds.width - 88.0, height: 40.0)
-        self.titleLabel.frame = CGRect(x: 18.0, y: bottom - 98.0, width: self.contentView.bounds.width - 88.0, height: 22.0)
+        self.progressSlider.frame = CGRect(x: 44.0, y: bottom - 18.0, width: self.contentView.bounds.width - 88.0, height: 18.0)
+        self.captionLabel.frame = CGRect(x: 18.0, y: bottom - 72.0, width: self.contentView.bounds.width - 112.0, height: 40.0)
+        self.titleLabel.frame = CGRect(x: 18.0, y: bottom - 98.0, width: self.contentView.bounds.width - 112.0, height: 22.0)
         self.positionLabel.frame = CGRect(x: 18.0, y: 66.0 + self.safeAreaInsets.top, width: 58.0, height: 18.0)
         self.timeLabel.frame = CGRect(x: self.contentView.bounds.width - 126.0, y: bottom - 41.0, width: 108.0, height: 18.0)
-        self.muteButton.frame = CGRect(x: self.contentView.bounds.width - 58.0, y: 58.0 + self.safeAreaInsets.top, width: 40.0, height: 40.0)
-        self.downloadButton.frame = CGRect(x: self.contentView.bounds.width - 58.0, y: 106.0 + self.safeAreaInsets.top, width: 40.0, height: 40.0)
-        self.sourceButton.frame = CGRect(x: self.contentView.bounds.width - 58.0, y: 154.0 + self.safeAreaInsets.top, width: 40.0, height: 40.0)
+        let x = self.contentView.bounds.width - 68.0
+        let y = self.contentView.bounds.height * 0.42
+        self.avatarView.frame = CGRect(x: x, y: y, width: 48, height: 48)
+        self.sourceButton.frame = CGRect(x: x + 4, y: y + 68, width: 40, height: 40)
+        self.downloadButton.frame = CGRect(x: x + 4, y: y + 124, width: 40, height: 40)
+        self.muteButton.frame = CGRect(x: x + 4, y: y + 180, width: 40, height: 40)
+        for (i, label) in self.actionTextLabels.enumerated() { label.frame = CGRect(x: x - 4, y: y + 108 + CGFloat(i) * 56, width: 56, height: 16) }
         self.activityIndicator.center = CGPoint(x: self.contentView.bounds.midX, y: self.contentView.bounds.midY)
     }
 
