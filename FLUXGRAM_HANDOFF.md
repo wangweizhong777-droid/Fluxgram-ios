@@ -167,3 +167,27 @@ Recommended smoke test after the next installation:
 ## Immediate Follow-up
 
 Wait for the user's visual and interaction feedback from the just-installed build. Likely follow-up work should remain narrowly scoped to download-page polish or search reliability. Do not start a broad frontend refactor without a new explicit request.
+
+## Short Video Stream UI (2026-09-13)
+
+The short video stream page was visually rebuilt while preserving Telegram source selection, scanning, playback, enable/disable actions, persistence, and navigation.
+
+Changed presentation files:
+
+- `submodules/SettingsUI/Sources/FluxgramDesign.swift` — shared page/card surface, typography, spacing, row, icon, and separator tokens.
+- `submodules/SettingsUI/Sources/FluxgramShortVideoItems.swift` — UIKit list blocks for intro, unified action card, unified sources card, source rows, and information card.
+- `submodules/SettingsUI/Sources/FluxgramShortVideoController.swift` — presentation entry generation only; source rows load real Telegram peer avatars by `dialogId`, with initial fallback when no image is available.
+
+The action area is one white card containing three inset rows. All Telegram sources are rows inside one white card. Card width now follows the NAS page's list inset behavior and avoids applying the page margin twice. Source rows remain chevron-driven because the existing business flow edits enabled state through the source action sheet; no new switch behavior was introduced.
+
+Validation completed:
+
+```bash
+swiftc -parse submodules/SettingsUI/Sources/FluxgramShortVideoItems.swift submodules/SettingsUI/Sources/FluxgramShortVideoController.swift
+git diff --check -- submodules/SettingsUI/Sources/FluxgramShortVideoItems.swift submodules/SettingsUI/Sources/FluxgramShortVideoController.swift submodules/SettingsUI/Sources/FluxgramDesign.swift
+xcodebuild -project Telegram/Telegram.xcodeproj -scheme Telegram -configuration Debug -destination 'generic/platform=iOS' -derivedDataPath build/DeviceDerivedData CODE_SIGNING_ALLOWED=NO build
+```
+
+The unsigned verification build succeeded after fixing the avatar image signal mapping. Commit: `21874ceedc` (`Polish short video stream UI`).
+
+The resulting app was installed over Wi‑Fi on the paired device `王伟忠的iPhone` (`DF49E90C-3E00-5630-9BE5-445D615EEF89`) using `xcrun devicectl device install app`. The second iPhone remains unavailable. Recommended smoke test: open `Fluxgram 设置 -> 短视频流`, confirm the action and sources each occupy one full-width card, verify long source titles truncate cleanly, and confirm real Telegram group/channel avatars appear when cached or loadable.
