@@ -10,10 +10,9 @@ import TelegramCore
 import UndoUI
 import TinyThumbnail
 
-// Fluxgram pages use the opaque, compact list treatment so dark mode keeps a
-// clear separation between the page background and each grouped card.
-private let fluxgramDownloadsItemListSystemStyle: ItemListSystemStyle = .glass
-private let fluxgramItemListSystemStyle: ItemListSystemStyle = .glass
+// Auxiliary rows use the standard opaque list treatment. The custom header
+// and task cards establish their own three-level light surface hierarchy.
+private let fluxgramItemListSystemStyle: ItemListSystemStyle = .legacy
 
 private struct FluxgramDownloadsControllerState: Equatable {
     var active: [FluxgramNASDownloadJob]
@@ -24,6 +23,7 @@ private struct FluxgramDownloadsControllerState: Equatable {
     var thumbnails: [String: Data]
     var historyLimit: Int
     var filter: FluxgramDownloadsFilter
+    var searchQuery: String
 }
 
 private enum FluxgramDownloadsFilter: String, Equatable {
@@ -338,7 +338,7 @@ private enum FluxgramDownloadsEntry: ItemListNodeEntry {
     case pendingHeader
     case pendingSummary(Int)
     case pending(Int, FluxgramNASSubmission)
-    case activeHeader(String, [String], Int)
+    case activeHeader(String, [String], Int, String)
     case activeSummary(String)
     case clearUnfinished
     case active(Int, FluxgramNASDownloadJob, Int64?, Data?)
@@ -350,7 +350,6 @@ private enum FluxgramDownloadsEntry: ItemListNodeEntry {
     case history(Int, FluxgramNASDownloadJob, Int64?, Data?)
     case historyLoadMore
     case status(String)
-    case storage(String)
 
     var section: ItemListSectionId {
         switch self {
@@ -360,7 +359,7 @@ private enum FluxgramDownloadsEntry: ItemListNodeEntry {
             return FluxgramDownloadsSection.active.rawValue
         case .historyHeader, .historySummary, .retryFailed, .history, .historyLoadMore:
             return FluxgramDownloadsSection.history.rawValue
-        case .status, .storage:
+        case .status:
             return FluxgramDownloadsSection.status.rawValue
         }
     }
@@ -402,8 +401,6 @@ private enum FluxgramDownloadsEntry: ItemListNodeEntry {
             return 10_003
         case .status:
             return 20_000
-        case .storage:
-            return 20_001
         }
     }
 
@@ -438,8 +435,6 @@ private enum FluxgramDownloadsEntry: ItemListNodeEntry {
                 return (FluxgramDownloadsSection.history.rawValue, 100_003)
         case .status:
             return (FluxgramDownloadsSection.status.rawValue, 0)
-        case .storage:
-            return (FluxgramDownloadsSection.status.rawValue, 1)
             }
         }
         let lhsOrder = order(lhs)
@@ -497,14 +492,16 @@ private enum FluxgramDownloadsEntry: ItemListNodeEntry {
                     arguments.retryPending(submission)
                 }
             )
-        case let .activeHeader(summary, filters, selectedFilter):
+        case let .activeHeader(summary, filters, selectedFilter, searchQuery):
             return FluxgramDownloadHeaderItem(
                 presentationData: presentationData,
                 summary: summary,
                 filters: filters,
                 selectedFilter: selectedFilter,
+                searchQuery: searchQuery,
                 sectionId: self.section,
-                selectFilter: arguments.selectFilter
+                selectFilter: arguments.selectFilter,
+                updateSearchQuery: arguments.updateSearchQuery
             )
         case let .activeSummary(text):
             return ItemListTextItem(presentationData: presentationData, text: .plain(text), sectionId: self.section)
@@ -606,8 +603,6 @@ private enum FluxgramDownloadsEntry: ItemListNodeEntry {
             )
         case let .status(message):
             return ItemListTextItem(presentationData: presentationData, text: .plain(message), sectionId: self.section)
-        case let .storage(message):
-            return ItemListTextItem(presentationData: presentationData, text: .plain(message), sectionId: self.section)
         }
     }
 }
@@ -620,8 +615,9 @@ private final class FluxgramDownloadsControllerArguments {
     let showJob: (FluxgramNASDownloadJob, Bool) -> Void
     let primaryAction: (FluxgramNASDownloadJob, Bool) -> Void
     let selectFilter: (Int) -> Void
+    let updateSearchQuery: (String) -> Void
 
-    init(retryPending: @escaping (FluxgramNASSubmission?) -> Void, retryFailed: @escaping () -> Void, clearUnfinished: @escaping () -> Void, loadMoreHistory: @escaping () -> Void, showJob: @escaping (FluxgramNASDownloadJob, Bool) -> Void, primaryAction: @escaping (FluxgramNASDownloadJob, Bool) -> Void, selectFilter: @escaping (Int) -> Void) {
+    init(retryPending: @escaping (FluxgramNASSubmission?) -> Void, retryFailed: @escaping () -> Void, clearUnfinished: @escaping () -> Void, loadMoreHistory: @escaping () -> Void, showJob: @escaping (FluxgramNASDownloadJob, Bool) -> Void, primaryAction: @escaping (FluxgramNASDownloadJob, Bool) -> Void, selectFilter: @escaping (Int) -> Void, updateSearchQuery: @escaping (String) -> Void) {
         self.retryPending = retryPending
         self.retryFailed = retryFailed
         self.clearUnfinished = clearUnfinished
@@ -629,6 +625,7 @@ private final class FluxgramDownloadsControllerArguments {
         self.showJob = showJob
         self.primaryAction = primaryAction
         self.selectFilter = selectFilter
+        self.updateSearchQuery = updateSearchQuery
     }
 }
 
@@ -748,6 +745,39 @@ private func fluxgramHistorySummary(_ jobs: [FluxgramNASDownloadJob]) -> String 
     return parts.joined(separator: " · ")
 }
 
+private func fluxgramDownloadMatchesSearch(_ job: FluxgramNASDownloadJob, query: String) -> Bool {
+    guard !query.isEmpty else { return true }
+    let values = [
+        job.title,
+        job.fileName,
+        job.requestedTitle,
+        job.sourceTitle,
+        job.sourceLabel,
+        job.sourceText,
+        job.sourceUrl,
+        job.downloadSubdir,
+        job.outputFile,
+        job.note,
+        job.tags.joined(separator: " ")
+    ]
+    return values.contains { $0.localizedCaseInsensitiveContains(query) }
+}
+
+private func fluxgramSubmissionMatchesSearch(_ submission: FluxgramNASSubmission, query: String) -> Bool {
+    guard !query.isEmpty else { return true }
+    let values = [
+        submission.options.title,
+        submission.desiredFileName ?? "",
+        submission.directDocument?.fileName ?? "",
+        submission.options.downloadSubdir,
+        submission.options.note,
+        submission.options.tags.joined(separator: " "),
+        submission.backendDialogId,
+        String(submission.messageId)
+    ]
+    return values.contains { $0.localizedCaseInsensitiveContains(query) }
+}
+
 private func fluxgramDownloadsEntries(state: FluxgramDownloadsControllerState) -> [FluxgramDownloadsEntry] {
     let activeStatuses: Set<String> = ["downloading", "running", "copying", "progressing"]
     let pausedStatuses: Set<String> = ["paused", "suspended"]
@@ -769,22 +799,29 @@ private func fluxgramDownloadsEntries(state: FluxgramDownloadsControllerState) -
     case .waiting: selectedFilter = 3
     case .failed: selectedFilter = 0
     }
-    var entries: [FluxgramDownloadsEntry] = [.activeHeader(headerSummary, filters, selectedFilter)]
+    let searchQuery = state.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+    var entries: [FluxgramDownloadsEntry] = [.activeHeader(headerSummary, filters, selectedFilter, state.searchQuery)]
+    var visibleTaskCount = 0
     if state.filter == .all {
         // "全部" is a chronological feed. Jobs from the active list, local
         // submissions waiting for admission, and historical NAS records all
         // share the same ordering based on their real creation timestamp.
         var allItems: [FluxgramAllDownloadsItem] = []
-        allItems.append(contentsOf: state.active.enumerated().map { .job($0.element, true, $0.offset) })
+        allItems.append(contentsOf: state.active.enumerated().compactMap {
+            fluxgramDownloadMatchesSearch($0.element, query: searchQuery) ? .job($0.element, true, $0.offset) : nil
+        })
         let pendingOffset = state.active.count
-        allItems.append(contentsOf: state.pending.enumerated().map { .pending($0.element, pendingOffset + $0.offset) })
+        allItems.append(contentsOf: state.pending.enumerated().compactMap {
+            fluxgramSubmissionMatchesSearch($0.element, query: searchQuery) ? .pending($0.element, pendingOffset + $0.offset) : nil
+        })
         let historyOffset = pendingOffset + state.pending.count
         let activeJobIdentities = Set(state.active.map(fluxgramAllDownloadsJobIdentity))
         allItems.append(contentsOf: state.history.enumerated().compactMap { item in
             // The NAS API can briefly return a completed job in both the
             // active snapshot and history. Keep the active representation so
             // the merged list never emits duplicate stable IDs.
-            guard !activeJobIdentities.contains(fluxgramAllDownloadsJobIdentity(item.element)) else {
+            guard !activeJobIdentities.contains(fluxgramAllDownloadsJobIdentity(item.element)),
+                  fluxgramDownloadMatchesSearch(item.element, query: searchQuery) else {
                 return nil
             }
             return .job(item.element, false, historyOffset + item.offset)
@@ -817,14 +854,18 @@ private func fluxgramDownloadsEntries(state: FluxgramDownloadsControllerState) -
                 return FluxgramDownloadsEntry.allPending(item.offset, submission)
             }
         })
+        visibleTaskCount += allItems.count
 
-        let failedCount = state.history.filter { ["failed", "error"].contains($0.status.lowercased()) }.count
+        let failedCount = state.history.filter {
+            ["failed", "error"].contains($0.status.lowercased()) && fluxgramDownloadMatchesSearch($0, query: searchQuery)
+        }.count
         if failedCount > 0 { entries.append(.retryFailed(failedCount)) }
         if state.history.count >= state.historyLimit, state.historyLimit < 200 {
             entries.append(.historyLoadMore)
         }
     } else {
         let filteredActive = state.active.filter { job in
+            guard fluxgramDownloadMatchesSearch(job, query: searchQuery) else { return false }
             let status = job.status.lowercased()
             switch state.filter {
             case .all: return true
@@ -843,13 +884,19 @@ private func fluxgramDownloadsEntries(state: FluxgramDownloadsControllerState) -
         entries.append(contentsOf: activeJobs.enumerated().map { item in
             .active(item.offset, item.element, state.speeds[fluxgramDownloadNotificationKey(item.element)], state.thumbnails[fluxgramDownloadThumbnailKey(item.element)])
         })
-        if !state.pending.isEmpty {
-            entries.append(.pendingSummary(state.pending.count))
-            entries.append(contentsOf: state.pending.enumerated().map { .pending($0.offset, $0.element) })
+        visibleTaskCount += activeJobs.count
+        let filteredPending = state.pending.filter { fluxgramSubmissionMatchesSearch($0, query: searchQuery) }
+        if !filteredPending.isEmpty {
+            entries.append(.pendingSummary(filteredPending.count))
+            entries.append(contentsOf: filteredPending.enumerated().map { .pending($0.offset, $0.element) })
+            visibleTaskCount += filteredPending.count
         }
-        let failedCount = state.history.filter { ["failed", "error"].contains($0.status.lowercased()) }.count
+        let failedCount = state.history.filter {
+            ["failed", "error"].contains($0.status.lowercased()) && fluxgramDownloadMatchesSearch($0, query: searchQuery)
+        }.count
         if failedCount > 0 { entries.append(.retryFailed(failedCount)) }
         let filteredHistory = state.history.filter { job in
+            guard fluxgramDownloadMatchesSearch(job, query: searchQuery) else { return false }
             let status = job.status.lowercased()
             switch state.filter {
             case .all: return true
@@ -861,19 +908,18 @@ private func fluxgramDownloadsEntries(state: FluxgramDownloadsControllerState) -
         entries.append(contentsOf: filteredHistory.enumerated().map { item in
             .history(item.offset, item.element, state.speeds[fluxgramDownloadNotificationKey(item.element)], state.thumbnails[fluxgramDownloadThumbnailKey(item.element)])
         })
+        visibleTaskCount += filteredHistory.count
         if state.history.count >= state.historyLimit, state.historyLimit < 200 {
             entries.append(.historyLoadMore)
         }
     }
-    if state.active.isEmpty && state.pending.isEmpty && state.history.isEmpty {
+    if !searchQuery.isEmpty && visibleTaskCount == 0 {
+        entries.append(.status("没有找到与“\(searchQuery)”匹配的下载任务。"))
+    } else if state.active.isEmpty && state.pending.isEmpty && state.history.isEmpty {
         entries.append(.status(state.error.isEmpty ? "暂时没有 NAS 下载任务。" : state.error))
     } else if !state.error.isEmpty {
         entries.append(.status(state.error))
     }
-    // Keep a compact storage/status footer in the same page. The NAS API does
-    // not currently expose quota information, so we intentionally avoid
-    // inventing a percentage and present an honest availability message.
-    entries.append(.storage("存储空间\nNAS 容量信息由服务器提供，当前未返回可用配额。"))
     return entries
 }
 
@@ -887,7 +933,8 @@ public func fluxgramDownloadsController(context: AccountContext) -> ViewControll
         speeds: [:],
         thumbnails: [:],
         historyLimit: 30,
-        filter: .all
+        filter: .all,
+        searchQuery: ""
     )
     let stateValue = Atomic(value: initialState)
     let statePromise = ValuePromise(initialState, ignoreRepeated: true)
@@ -1270,6 +1317,12 @@ public func fluxgramDownloadsController(context: AccountContext) -> ViewControll
         updateState { state in
             var state = state
             state.filter = filters[index]
+            return state
+        }
+    }, updateSearchQuery: { query in
+        updateState { state in
+            var state = state
+            state.searchQuery = query
             return state
         }
     })

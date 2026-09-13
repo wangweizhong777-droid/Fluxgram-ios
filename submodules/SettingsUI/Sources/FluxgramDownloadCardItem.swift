@@ -78,29 +78,33 @@ private final class FluxgramDownloadCardItemNode: ListViewItemNode {
     init() {
         super.init(layerBacked: false)
         self.backgroundColor = .clear
-        self.cardView.backgroundColor = .white
-        self.cardView.layer.cornerRadius = 20.0
+        self.cardView.backgroundColor = FluxgramDownloadDesign.Surface.card
+        self.cardView.layer.cornerRadius = FluxgramDownloadDesign.Size.cardRadius
         self.cardView.layer.masksToBounds = true
         self.thumbnailView.clipsToBounds = true
         self.thumbnailView.layer.cornerRadius = 10.0
-        self.titleLabel.font = UIFont.systemFont(ofSize: 16.5, weight: .semibold)
-        self.titleLabel.textColor = .black
+        self.titleLabel.font = FluxgramDownloadDesign.Font.fileName
+        self.titleLabel.textColor = .label
         self.titleLabel.numberOfLines = 1
-        self.metaLabel.font = UIFont.systemFont(ofSize: 14.0)
+        self.metaLabel.font = FluxgramDownloadDesign.Font.metadata
         self.metaLabel.textColor = .secondaryLabel
-        self.statusLabel.font = UIFont.systemFont(ofSize: 14.0)
+        self.statusLabel.font = FluxgramDownloadDesign.Font.metadata
+        self.statusLabel.textColor = .secondaryLabel
         self.statusLabel.numberOfLines = 1
         self.statusIcon.contentMode = .scaleAspectFit
-        self.percentLabel.font = UIFont.monospacedDigitSystemFont(ofSize: 14.0, weight: .medium)
+        self.percentLabel.font = FluxgramDownloadDesign.Font.progress
         self.percentLabel.textColor = .label
+        self.percentLabel.adjustsFontSizeToFitWidth = true
+        self.percentLabel.minimumScaleFactor = 0.8
+        self.percentLabel.textAlignment = .right
         self.progressView.progressTintColor = .systemBlue
         self.progressView.trackTintColor = UIColor.systemGray5
         self.actionButton.tintColor = .secondaryLabel
         self.moreButton.tintColor = .secondaryLabel
-        self.actionButton.backgroundColor = UIColor.systemGray6
-        self.actionButton.layer.cornerRadius = 20.0
+        self.actionButton.backgroundColor = FluxgramDownloadDesign.Surface.subtleAction
+        self.actionButton.layer.cornerRadius = FluxgramDownloadDesign.Size.cardAction / 2.0
         self.moreButton.backgroundColor = .clear
-        self.moreButton.alpha = 0.72
+        self.moreButton.alpha = 0.62
         self.actionButton.addTarget(self, action: #selector(activate), for: .touchUpInside)
         self.moreButton.addTarget(self, action: #selector(activateMore), for: .touchUpInside)
     }
@@ -123,10 +127,8 @@ private final class FluxgramDownloadCardItemNode: ListViewItemNode {
     @objc private func activateMore() { moreAction?() }
 
     func layout(item: FluxgramDownloadCardItem, params: ListViewItemLayoutParams) -> ListViewItemNodeLayout {
-        let insets = UIEdgeInsets(top: 3.0, left: 0.0, bottom: 3.0, right: 0.0)
-        let status = item.job.status.lowercased()
-        let compact = ["done", "completed", "complete", "finished", "success"].contains(status)
-        return ListViewItemNodeLayout(contentSize: CGSize(width: params.width, height: compact ? 92.0 : 104.0), insets: insets)
+        let insets = UIEdgeInsets.zero
+        return ListViewItemNodeLayout(contentSize: CGSize(width: params.width, height: 106.0), insets: insets)
     }
 
     func apply(item: FluxgramDownloadCardItem, params: ListViewItemLayoutParams) {
@@ -135,21 +137,27 @@ private final class FluxgramDownloadCardItemNode: ListViewItemNode {
         let width = params.width
         let status = item.job.status.lowercased()
         let completed = ["done", "completed", "complete", "finished", "success"].contains(status)
-        let cardHeight: CGFloat = completed ? 86.0 : 98.0
-        let thumbnailSize: CGFloat = completed ? 70.0 : 82.0
-        let cardFrame = CGRect(x: params.leftInset + 20.0, y: 3.0, width: width - params.leftInset - params.rightInset - 40.0, height: cardHeight)
+        let cardHeight: CGFloat = 98.0
+        let thumbnailSize: CGFloat = 82.0
+        let leftMargin = max(FluxgramDownloadDesign.Spacing.pageMargin, params.leftInset)
+        let rightMargin = max(FluxgramDownloadDesign.Spacing.pageMargin, params.rightInset)
+        let cardFrame = CGRect(x: leftMargin, y: FluxgramDownloadDesign.Spacing.xSmall, width: width - leftMargin - rightMargin, height: cardHeight)
         cardView.frame = cardFrame
         thumbnailView.frame = CGRect(x: 8.0, y: 8.0, width: thumbnailSize, height: thumbnailSize)
-        let contentX: CGFloat = completed ? 88.0 : 100.0
+        let contentX: CGFloat = 100.0
         let trailing: CGFloat = 62.0
         titleLabel.frame = CGRect(x: contentX, y: 7.0, width: cardFrame.width - contentX - trailing, height: 22.0)
         metaLabel.frame = CGRect(x: completed ? contentX + 22.0 : contentX, y: 31.0, width: cardFrame.width - contentX - trailing - (completed ? 22.0 : 0.0), height: 17.0)
-        progressView.frame = CGRect(x: contentX, y: 55.0, width: max(50.0, cardFrame.width - contentX - trailing - 34.0), height: 4.0)
-        percentLabel.frame = CGRect(x: cardFrame.width - trailing - 30.0, y: 47.0, width: 30.0, height: 20.0)
-        statusIcon.frame = CGRect(x: contentX, y: completed ? 31.0 : 70.0, width: 18.0, height: 18.0)
+        progressView.frame = CGRect(x: contentX, y: 55.0, width: max(50.0, cardFrame.width - contentX - trailing - 44.0), height: 4.0)
+        let percentWidth: CGFloat = 40.0
+        percentLabel.frame = CGRect(x: cardFrame.width - trailing - percentWidth, y: 47.0, width: percentWidth, height: 20.0)
+        let statusIconSize = FluxgramDownloadDesign.Size.statusIcon
+        statusIcon.frame = CGRect(x: contentX, y: completed ? 31.5 : 71.0, width: statusIconSize, height: statusIconSize)
         statusLabel.frame = CGRect(x: contentX + 24.0, y: 68.0, width: cardFrame.width - contentX - trailing - 24.0, height: 20.0)
-        actionButton.frame = CGRect(x: cardFrame.width - 52.0, y: 16.0, width: 40.0, height: 40.0)
-        moreButton.frame = CGRect(x: cardFrame.width - 38.0, y: completed ? 53.0 : 63.0, width: 28.0, height: 28.0)
+        let actionSize = FluxgramDownloadDesign.Size.cardAction
+        actionButton.frame = CGRect(x: cardFrame.width - actionSize - FluxgramDownloadDesign.Spacing.medium, y: FluxgramDownloadDesign.Spacing.large, width: actionSize, height: actionSize)
+        let moreHitArea = FluxgramDownloadDesign.Size.moreHitArea
+        moreButton.frame = CGRect(x: cardFrame.width - moreHitArea - FluxgramDownloadDesign.Spacing.small, y: 62.0, width: moreHitArea, height: moreHitArea)
 
         let failed = ["failed", "error", "cancelled", "canceled"].contains(status)
         let paused = ["paused", "suspended"].contains(status)
@@ -184,31 +192,31 @@ private final class FluxgramDownloadCardItemNode: ListViewItemNode {
         statusLabel.isHidden = false
         statusIcon.isHidden = false
         if completed {
-            statusIcon.image = UIImage(systemName: "checkmark.circle.fill")
+            statusIcon.image = UIImage(systemName: "checkmark.circle.fill", withConfiguration: FluxgramDownloadDesign.statusSymbol)
             statusIcon.tintColor = .systemGreen
             statusLabel.isHidden = true
-            actionButton.setImage(UIImage(systemName: "folder"), for: .normal)
+            actionButton.setImage(UIImage(systemName: "folder", withConfiguration: FluxgramDownloadDesign.regularSymbol), for: .normal)
         } else if failed {
             statusLabel.isHidden = false
-            statusIcon.image = UIImage(systemName: "exclamationmark.circle.fill")
+            statusIcon.image = UIImage(systemName: "exclamationmark.circle.fill", withConfiguration: FluxgramDownloadDesign.statusSymbol)
             statusIcon.tintColor = .systemRed
             statusLabel.text = "下载失败 · 点击重试"
-            statusLabel.textColor = .systemRed
-            actionButton.setImage(UIImage(systemName: "arrow.clockwise"), for: .normal)
+            statusLabel.textColor = .secondaryLabel
+            actionButton.setImage(UIImage(systemName: "arrow.clockwise", withConfiguration: FluxgramDownloadDesign.regularSymbol), for: .normal)
         } else if paused {
             statusLabel.isHidden = false
-            statusIcon.image = UIImage(systemName: "pause.circle.fill")
+            statusIcon.image = UIImage(systemName: "pause.circle.fill", withConfiguration: FluxgramDownloadDesign.statusSymbol)
             statusIcon.tintColor = .secondaryLabel
             statusLabel.text = "已暂停"
             statusLabel.textColor = .secondaryLabel
-            actionButton.setImage(UIImage(systemName: "play.fill"), for: .normal)
+            actionButton.setImage(UIImage(systemName: "arrowtriangle.right.fill", withConfiguration: FluxgramDownloadDesign.regularSymbol), for: .normal)
         } else if waiting {
             statusLabel.isHidden = false
-            statusIcon.image = UIImage(systemName: "clock")
+            statusIcon.image = UIImage(systemName: "clock", withConfiguration: FluxgramDownloadDesign.statusSymbol)
             statusIcon.tintColor = .secondaryLabel
             statusLabel.text = "等待中…"
             statusLabel.textColor = .secondaryLabel
-            actionButton.setImage(UIImage(systemName: "play.fill"), for: .normal)
+            actionButton.setImage(UIImage(systemName: "arrowtriangle.right.circle", withConfiguration: FluxgramDownloadDesign.regularSymbol), for: .normal)
         } else {
             statusLabel.isHidden = false
             statusIcon.isHidden = true
@@ -217,8 +225,8 @@ private final class FluxgramDownloadCardItemNode: ListViewItemNode {
             if let speed = fluxgramDownloadSpeedText(item.speed) { text += " · \(speed)" }
             statusLabel.text = text
             statusLabel.textColor = .secondaryLabel
-            actionButton.setImage(UIImage(systemName: "pause.fill"), for: .normal)
+            actionButton.setImage(UIImage(systemName: "pause.fill", withConfiguration: FluxgramDownloadDesign.regularSymbol), for: .normal)
         }
-        moreButton.setImage(UIImage(systemName: "ellipsis"), for: .normal)
+        moreButton.setImage(UIImage(systemName: "ellipsis", withConfiguration: FluxgramDownloadDesign.subtleSymbol), for: .normal)
     }
 }
