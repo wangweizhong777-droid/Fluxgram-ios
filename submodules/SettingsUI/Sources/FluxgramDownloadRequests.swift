@@ -139,10 +139,10 @@ private func fluxgramDownloadSourceText(message: EngineMessage) -> String {
 
 private func fluxgramDownloadThumbnailData(message: EngineMessage) -> Data? {
     if let file = message.media.compactMap({ $0 as? TelegramMediaFile }).first {
-        return file.immediateThumbnailData
+        return fluxgramImmediateThumbnailData(file: file)
     }
     if let image = message.media.compactMap({ $0 as? TelegramMediaImage }).first {
-        return image.immediateThumbnailData
+        return fluxgramImmediateThumbnailData(image: image)
     }
     return nil
 }
@@ -186,22 +186,33 @@ public func fluxgramRefreshedDirectDownloads(context: AccountContext, messages: 
             } else {
                 refreshedMessage = message
             }
-            if let document = fluxgramDirectDocument(message: refreshedMessage) {
-                downloads[index] = FluxgramNASDirectDownload(
-                    dialogId: message.id.peerId.toInt64(),
-                    messageId: message.id.id,
-                    document: document,
-                    sourceLabel: fluxgramDownloadSourceLabel(message: refreshedMessage),
-                    sourceText: fluxgramDownloadSourceText(message: refreshedMessage),
-                    thumbnailData: fluxgramDownloadThumbnailData(message: refreshedMessage)
-                )
+            let finish: (Data?) -> Void = { thumbnailData in
+                if let document = fluxgramDirectDocument(message: refreshedMessage) {
+                    downloads[index] = FluxgramNASDirectDownload(
+                        dialogId: message.id.peerId.toInt64(),
+                        messageId: message.id.id,
+                        document: document,
+                        sourceLabel: fluxgramDownloadSourceLabel(message: refreshedMessage),
+                        sourceText: fluxgramDownloadSourceText(message: refreshedMessage),
+                        thumbnailData: thumbnailData ?? fluxgramDownloadThumbnailData(message: refreshedMessage)
+                    )
+                }
+                completedCount += 1
+                if completedCount == videoMessages.count {
+                    completion(downloads.compactMap { $0 })
+                } else {
+                    refreshNext()
+                }
             }
-            completedCount += 1
-            if completedCount == videoMessages.count {
-                completion(downloads.compactMap { $0 })
-            } else {
-                refreshNext()
-            }
+
+            // Fetch the largest available preview resource before submitting
+            // the task. If Telegram cannot provide it quickly, the helper
+            // emits the bounded immediate-thumbnail fallback and the task is
+            // still submitted normally.
+            let _ = (fluxgramMessageThumbnailData(context: context, message: refreshedMessage)
+            |> deliverOnMainQueue).start(next: { thumbnailData in
+                finish(thumbnailData)
+            })
         })
     }
 

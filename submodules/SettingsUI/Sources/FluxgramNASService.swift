@@ -221,6 +221,8 @@ struct FluxgramNASDownloadJob: Equatable {
     let note: String
     let inbox: Bool
     let thumbnailData: Data?
+    /// NAS task creation time. Older records may omit it.
+    let createdAt: TimeInterval?
 
     var title: String {
         return self.fileName.isEmpty ? "媒体文件" : self.fileName
@@ -1973,8 +1975,9 @@ public final class FluxgramNASService {
                 sourceRootMessageId: self.optionalInteger(value, key: "sourceRootMessageId").map(Int32.init),
                 tags: self.stringArray(value, key: "tags"),
                 note: self.string(value, key: "note"),
-                inbox: self.boolean(value, key: "inbox")
-                ,thumbnailData: self.base64Data(value, keys: ["thumbnailData", "thumbnail"])
+                inbox: self.boolean(value, key: "inbox"),
+                thumbnailData: self.base64Data(value, keys: ["thumbnailData", "thumbnail"]),
+                createdAt: self.optionalTime(value, keys: ["createdAt", "created_at", "submittedAt", "submitted_at"])
             )
         }
     }
@@ -2024,6 +2027,26 @@ public final class FluxgramNASService {
         }
         let result = self.integer(value, key: key)
         return result == 0 ? nil : result
+    }
+
+    private func optionalTime(_ value: [String: Any], keys: [String]) -> TimeInterval? {
+        for key in keys {
+            guard let raw = value[key] else {
+                continue
+            }
+            if let number = raw as? NSNumber {
+                return number.doubleValue > 10_000_000_000 ? number.doubleValue / 1_000.0 : number.doubleValue
+            }
+            if let string = raw as? String {
+                if let number = Double(string) {
+                    return number > 10_000_000_000 ? number / 1_000.0 : number
+                }
+                if let date = ISO8601DateFormatter().date(from: string) {
+                    return date.timeIntervalSince1970
+                }
+            }
+        }
+        return nil
     }
 
     private func stringArray(_ value: [String: Any], key: String) -> [String] {

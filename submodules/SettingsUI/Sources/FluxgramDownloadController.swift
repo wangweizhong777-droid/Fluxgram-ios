@@ -216,9 +216,7 @@ private enum FluxgramDownloadEntry: ItemListNodeEntry {
             } else {
                 subtitle = nil
             }
-            let thumbnail: UIImage? = download.thumbnailData
-                .flatMap(decodeTinyThumbnail)
-                .flatMap(UIImage.init(data:))
+            let thumbnail: UIImage? = fluxgramDownloadThumbnail(download.thumbnailData)
             return ItemListCheckboxItem(
                 presentationData: presentationData,
                 systemStyle: fluxgramItemListSystemStyle,

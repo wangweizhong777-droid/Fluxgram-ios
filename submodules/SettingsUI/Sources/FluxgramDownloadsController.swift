@@ -34,6 +34,35 @@ private enum FluxgramDownloadsFilter: String, Equatable {
     case failed = "失败"
 }
 
+private enum FluxgramAllDownloadsItem {
+    case job(FluxgramNASDownloadJob, Bool, Int)
+    case pending(FluxgramNASSubmission, Int)
+
+    var createdAt: TimeInterval? {
+        switch self {
+        case let .job(job, _, _):
+            guard let value = job.createdAt, value > 0 else { return nil }
+            return value
+        case let .pending(submission, _):
+            return submission.createdAt > 0 ? submission.createdAt : nil
+        }
+    }
+
+    var sourceIndex: Int {
+        switch self {
+        case let .job(_, _, index), let .pending(_, index):
+            return index
+        }
+    }
+}
+
+private func fluxgramAllDownloadsJobIdentity(_ job: FluxgramNASDownloadJob) -> String {
+    if !job.id.isEmpty {
+        return "id:" + job.id
+    }
+    return "fallback:\(job.fileName)|\(job.downloadSubdir)|\(job.sourceUrl)|\(job.outputFile)"
+}
+
 private enum FluxgramDownloadsSection: Int32 {
     case active
     case pending
@@ -261,14 +290,11 @@ private func fluxgramLocalDownloadThumbnail(context: AccountContext, job: Fluxgr
             return .never()
         case let .result(messages):
             for message in messages {
-                if let file = message.media.compactMap({ $0 as? TelegramMediaFile }).first,
-                   let data = file.immediateThumbnailData {
-                    return .single(data)
-                }
-                if let image = message.media.compactMap({ $0 as? TelegramMediaImage }).first,
-                   let data = image.immediateThumbnailData {
-                    return .single(data)
-                }
+                // Prefer the largest cached/available Telegram preview. The
+                // helper falls back to the bounded immediate thumbnail and
+                // never reads the original media file.
+                return fluxgramMessageThumbnailData(context: context, message: EngineMessage(message))
+                    |> castError(GetMessagesError.self)
             }
             return .single(nil)
         }
@@ -316,6 +342,8 @@ private enum FluxgramDownloadsEntry: ItemListNodeEntry {
     case activeSummary(String)
     case clearUnfinished
     case active(Int, FluxgramNASDownloadJob, Int64?, Data?)
+    case allJob(Int, FluxgramNASDownloadJob, Bool, Int64?, Data?)
+    case allPending(Int, FluxgramNASSubmission)
     case historyHeader
     case historySummary(String)
     case retryFailed(Int)
@@ -328,7 +356,7 @@ private enum FluxgramDownloadsEntry: ItemListNodeEntry {
         switch self {
         case .pendingHeader, .pendingSummary, .pending:
             return FluxgramDownloadsSection.pending.rawValue
-        case .activeHeader, .activeSummary, .clearUnfinished, .active:
+        case .activeHeader, .activeSummary, .clearUnfinished, .active, .allJob, .allPending:
             return FluxgramDownloadsSection.active.rawValue
         case .historyHeader, .historySummary, .retryFailed, .history, .historyLoadMore:
             return FluxgramDownloadsSection.history.rawValue
@@ -357,6 +385,11 @@ private enum FluxgramDownloadsEntry: ItemListNodeEntry {
             return 4
         case let .active(index, job, _, _):
             return fluxgramDownloadStableId(job, namespace: 100_000, index: index)
+        case let .allJob(index, job, _, _, _):
+            return fluxgramDownloadStableId(job, namespace: 300_000_000, index: index)
+        case let .allPending(index, submission):
+            let identifier = submission.stableKey.isEmpty ? "all-pending-\(index)" : submission.stableKey
+            return fluxgramStableHash(identifier, namespace: 1_300_000_000)
         case .historyHeader:
             return 10_000
         case .historySummary:
@@ -390,6 +423,8 @@ private enum FluxgramDownloadsEntry: ItemListNodeEntry {
             case .clearUnfinished:
                 return (FluxgramDownloadsSection.active.rawValue, 2)
             case let .active(index, _, _, _):
+                return (FluxgramDownloadsSection.active.rawValue, index + 3)
+            case let .allJob(index, _, _, _, _), let .allPending(index, _):
                 return (FluxgramDownloadsSection.active.rawValue, index + 3)
             case .historyHeader:
                 return (FluxgramDownloadsSection.history.rawValue, 0)
@@ -495,6 +530,38 @@ private enum FluxgramDownloadsEntry: ItemListNodeEntry {
                 cardAction: { arguments.showJob(job, !failed) },
                 primaryAction: { arguments.primaryAction(job, true) },
                 moreAction: { arguments.showJob(job, !failed) }
+            )
+        case let .allJob(_, job, isActive, speed, thumbnailData):
+            let failed = ["failed", "error"].contains(job.status.lowercased())
+            return FluxgramDownloadCardItem(
+                presentationData: presentationData,
+                job: job,
+                thumbnailData: thumbnailData,
+                speed: speed,
+                sectionId: self.section,
+                cardAction: { arguments.showJob(job, isActive && !failed) },
+                primaryAction: { arguments.primaryAction(job, isActive) },
+                moreAction: { arguments.showJob(job, isActive && !failed) }
+            )
+        case let .allPending(_, submission):
+            var details: [String] = [submission.options.downloadSubdir.isEmpty ? "NAS 根目录" : submission.options.downloadSubdir]
+            if submission.attemptCount > 0 {
+                details.append("已尝试 \(submission.attemptCount) 次")
+            }
+            if !submission.displayError.isEmpty {
+                details.append(submission.displayError)
+            }
+            details.append("点击重试")
+            return ItemListDisclosureItem(
+                presentationData: presentationData,
+                systemStyle: fluxgramItemListSystemStyle,
+                title: "消息 \(submission.messageId)",
+                label: details.joined(separator: "\n"),
+                labelStyle: .multilineDetailText,
+                sectionId: self.section,
+                style: .blocks,
+                disclosureStyle: .none,
+                action: { arguments.retryPending(submission) }
             )
         case let .history(_, job, speed, thumbnailData):
             return FluxgramDownloadCardItem(
@@ -689,7 +756,7 @@ private func fluxgramDownloadsEntries(state: FluxgramDownloadsControllerState) -
     let headerSummary = "\(activeCount) 个任务下载中 · \(completedCount) 个已完成"
     let pausedCount = state.active.filter { pausedStatuses.contains($0.status.lowercased()) }.count
     let filters = [
-        "全部 \(state.active.count + state.history.count)",
+        "全部 \(state.active.count + state.pending.count + state.history.count)",
         "下载中 \(activeCount)",
         "已完成 \(completedCount)",
         "已暂停 \(pausedCount)"
@@ -703,47 +770,102 @@ private func fluxgramDownloadsEntries(state: FluxgramDownloadsControllerState) -
     case .failed: selectedFilter = 0
     }
     var entries: [FluxgramDownloadsEntry] = [.activeHeader(headerSummary, filters, selectedFilter)]
-    let filteredActive = state.active.filter { job in
-        let status = job.status.lowercased()
-        switch state.filter {
-        case .all: return true
-        case .active: return activeStatuses.contains(status)
-        case .waiting: return pausedStatuses.contains(status)
-        case .completed, .failed: return false
+    if state.filter == .all {
+        // "全部" is a chronological feed. Jobs from the active list, local
+        // submissions waiting for admission, and historical NAS records all
+        // share the same ordering based on their real creation timestamp.
+        var allItems: [FluxgramAllDownloadsItem] = []
+        allItems.append(contentsOf: state.active.enumerated().map { .job($0.element, true, $0.offset) })
+        let pendingOffset = state.active.count
+        allItems.append(contentsOf: state.pending.enumerated().map { .pending($0.element, pendingOffset + $0.offset) })
+        let historyOffset = pendingOffset + state.pending.count
+        let activeJobIdentities = Set(state.active.map(fluxgramAllDownloadsJobIdentity))
+        allItems.append(contentsOf: state.history.enumerated().compactMap { item in
+            // The NAS API can briefly return a completed job in both the
+            // active snapshot and history. Keep the active representation so
+            // the merged list never emits duplicate stable IDs.
+            guard !activeJobIdentities.contains(fluxgramAllDownloadsJobIdentity(item.element)) else {
+                return nil
+            }
+            return .job(item.element, false, historyOffset + item.offset)
+        })
+
+        allItems.sort { lhs, rhs in
+            switch (lhs.createdAt, rhs.createdAt) {
+            case let (left?, right?) where left != right:
+                return left > right
+            case (_?, nil):
+                return true
+            case (nil, _?):
+                return false
+            default:
+                return lhs.sourceIndex < rhs.sourceIndex
+            }
+        }
+
+        entries.append(contentsOf: allItems.enumerated().map { item in
+            switch item.element {
+            case let .job(job, isActive, _):
+                return FluxgramDownloadsEntry.allJob(
+                    item.offset,
+                    job,
+                    isActive,
+                    state.speeds[fluxgramDownloadNotificationKey(job)],
+                    state.thumbnails[fluxgramDownloadThumbnailKey(job)]
+                )
+            case let .pending(submission, _):
+                return FluxgramDownloadsEntry.allPending(item.offset, submission)
+            }
+        })
+
+        let failedCount = state.history.filter { ["failed", "error"].contains($0.status.lowercased()) }.count
+        if failedCount > 0 { entries.append(.retryFailed(failedCount)) }
+        if state.history.count >= state.historyLimit, state.historyLimit < 200 {
+            entries.append(.historyLoadMore)
+        }
+    } else {
+        let filteredActive = state.active.filter { job in
+            let status = job.status.lowercased()
+            switch state.filter {
+            case .all: return true
+            case .active: return activeStatuses.contains(status)
+            case .waiting: return pausedStatuses.contains(status)
+            case .completed, .failed: return false
+            }
+        }
+        let activeJobs = filteredActive.sorted { lhs, rhs in
+            let waiting: Set<String> = ["queued", "queue", "pending", "waiting", "submitted", "retrying"]
+            let leftWaiting = waiting.contains(lhs.status.lowercased())
+            let rightWaiting = waiting.contains(rhs.status.lowercased())
+            if leftWaiting != rightWaiting { return !leftWaiting }
+            return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+        }
+        entries.append(contentsOf: activeJobs.enumerated().map { item in
+            .active(item.offset, item.element, state.speeds[fluxgramDownloadNotificationKey(item.element)], state.thumbnails[fluxgramDownloadThumbnailKey(item.element)])
+        })
+        if !state.pending.isEmpty {
+            entries.append(.pendingSummary(state.pending.count))
+            entries.append(contentsOf: state.pending.enumerated().map { .pending($0.offset, $0.element) })
+        }
+        let failedCount = state.history.filter { ["failed", "error"].contains($0.status.lowercased()) }.count
+        if failedCount > 0 { entries.append(.retryFailed(failedCount)) }
+        let filteredHistory = state.history.filter { job in
+            let status = job.status.lowercased()
+            switch state.filter {
+            case .all: return true
+            case .completed: return ["completed", "complete", "finished", "success", "done"].contains(status)
+            case .failed: return ["failed", "error"].contains(status)
+            case .active, .waiting: return false
+            }
+        }
+        entries.append(contentsOf: filteredHistory.enumerated().map { item in
+            .history(item.offset, item.element, state.speeds[fluxgramDownloadNotificationKey(item.element)], state.thumbnails[fluxgramDownloadThumbnailKey(item.element)])
+        })
+        if state.history.count >= state.historyLimit, state.historyLimit < 200 {
+            entries.append(.historyLoadMore)
         }
     }
-    let activeJobs = filteredActive.sorted { lhs, rhs in
-        let waiting: Set<String> = ["queued", "queue", "pending", "waiting", "submitted", "retrying"]
-        let leftWaiting = waiting.contains(lhs.status.lowercased())
-        let rightWaiting = waiting.contains(rhs.status.lowercased())
-        if leftWaiting != rightWaiting { return !leftWaiting }
-        return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
-    }
-    entries.append(contentsOf: activeJobs.enumerated().map { item in
-        .active(item.offset, item.element, state.speeds[fluxgramDownloadNotificationKey(item.element)], state.thumbnails[fluxgramDownloadThumbnailKey(item.element)])
-    })
-    if !state.pending.isEmpty {
-        entries.append(.pendingSummary(state.pending.count))
-        entries.append(contentsOf: state.pending.enumerated().map { .pending($0.offset, $0.element) })
-    }
-    let failedCount = state.history.filter { ["failed", "error"].contains($0.status.lowercased()) }.count
-    if failedCount > 0 { entries.append(.retryFailed(failedCount)) }
-    let filteredHistory = state.history.filter { job in
-        let status = job.status.lowercased()
-        switch state.filter {
-        case .all: return true
-        case .completed: return ["completed", "complete", "finished", "success", "done"].contains(status)
-        case .failed: return ["failed", "error"].contains(status)
-        case .active, .waiting: return false
-        }
-    }
-    entries.append(contentsOf: filteredHistory.enumerated().map { item in
-        .history(item.offset, item.element, state.speeds[fluxgramDownloadNotificationKey(item.element)], state.thumbnails[fluxgramDownloadThumbnailKey(item.element)])
-    })
-    if state.history.count >= state.historyLimit, state.historyLimit < 200 {
-        entries.append(.historyLoadMore)
-    }
-    if state.active.isEmpty && state.history.isEmpty {
+    if state.active.isEmpty && state.pending.isEmpty && state.history.isEmpty {
         entries.append(.status(state.error.isEmpty ? "暂时没有 NAS 下载任务。" : state.error))
     } else if !state.error.isEmpty {
         entries.append(.status(state.error))
@@ -783,6 +905,33 @@ public func fluxgramDownloadsController(context: AccountContext) -> ViewControll
     let requestMissingThumbnails: ([FluxgramNASDownloadJob]) -> Void = { jobs in
         let cachedKeys = stateValue.with { Set($0.thumbnails.keys) }
         for job in jobs.prefix(30) where job.thumbnailData == nil {
+            let key = fluxgramDownloadThumbnailKey(job)
+            guard !cachedKeys.contains(key), requestedThumbnailKeys.insert(key).inserted else {
+                continue
+            }
+            let disposable = (fluxgramLocalDownloadThumbnail(context: context, job: job)
+            |> deliverOnMainQueue).start(next: { data in
+                guard let data else { return }
+                updateState { state in
+                    var state = state
+                    state.thumbnails[key] = data
+                    return state
+                }
+            })
+            thumbnailDisposables.append(disposable)
+        }
+
+        // Older NAS records may already contain an immediate TinyThumbnail.
+        // Re-fetch only those that are clearly too small for the card so the
+        // list can upgrade in place without reloading every historical job.
+        for job in jobs.prefix(30) where job.thumbnailData != nil {
+            let isLowResolution = job.thumbnailData.flatMap { data -> Bool? in
+                guard let image = fluxgramDownloadThumbnail(data), let cgImage = image.cgImage else {
+                    return nil
+                }
+                return max(cgImage.width, cgImage.height) < 300
+            } ?? false
+            guard isLowResolution else { continue }
             let key = fluxgramDownloadThumbnailKey(job)
             guard !cachedKeys.contains(key), requestedThumbnailKeys.insert(key).inserted else {
                 continue

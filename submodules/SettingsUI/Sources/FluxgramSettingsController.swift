@@ -6,22 +6,20 @@ import TelegramPresentationData
 import ItemListUI
 import AccountContext
 
-// Settings are information-dense, so use the compact opaque card treatment.
-// This keeps labels and input fields readable against the dark grouped list
-// background while leaving glass for navigation-level surfaces.
+// Fluxgram settings use the compact opaque treatment consistently.
 private let fluxgramItemListSystemStyle: ItemListSystemStyle = .legacy
 
-struct FluxgramSettings: Equatable, Codable {
-    var localBaseURL: String
-    var remoteBaseURL: String
-    var accessToken: String
-    var notifyStatusURL: String
-    var notifyStatusToken: String
-    var aiBaseURL: String
-    var aiAccessToken: String
-    var aiModel: String
+public struct FluxgramSettings: Equatable, Codable {
+    public var localBaseURL: String
+    public var remoteBaseURL: String
+    public var accessToken: String
+    public var notifyStatusURL: String
+    public var notifyStatusToken: String
+    public var aiBaseURL: String
+    public var aiAccessToken: String
+    public var aiModel: String
 
-    init(localBaseURL: String, remoteBaseURL: String, accessToken: String, notifyStatusURL: String = "", notifyStatusToken: String = "", aiBaseURL: String = "https://api.maolaoapi.cc", aiAccessToken: String = "", aiModel: String = "") {
+    public init(localBaseURL: String, remoteBaseURL: String, accessToken: String, notifyStatusURL: String = "", notifyStatusToken: String = "", aiBaseURL: String = "https://api.maolaoapi.cc", aiAccessToken: String = "", aiModel: String = "") {
         self.localBaseURL = localBaseURL
         self.remoteBaseURL = remoteBaseURL
         self.accessToken = accessToken
@@ -43,7 +41,7 @@ struct FluxgramSettings: Equatable, Codable {
         case aiModel
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.localBaseURL = try container.decode(String.self, forKey: .localBaseURL)
         self.remoteBaseURL = try container.decode(String.self, forKey: .remoteBaseURL)
@@ -56,12 +54,12 @@ struct FluxgramSettings: Equatable, Codable {
     }
 }
 
-enum FluxgramSettingsStoreError: Error {
+public enum FluxgramSettingsStoreError: Error {
     case encoding
     case unexpectedStatus(OSStatus)
 }
 
-enum FluxgramSettingsStore {
+public enum FluxgramSettingsStore {
     private static let service = "com.fluxgram.ios.settings"
     private static let account = "tgapp.configuration.v1"
 
@@ -77,7 +75,7 @@ enum FluxgramSettingsStore {
         return self.query(service: self.service)
     }
 
-    static func load() throws -> FluxgramSettings {
+    public static func load() throws -> FluxgramSettings {
         var query = self.query
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
@@ -93,7 +91,7 @@ enum FluxgramSettingsStore {
         return settings
     }
 
-    static func save(_ settings: FluxgramSettings) throws {
+    public static func save(_ settings: FluxgramSettings) throws {
         guard let data = try? JSONEncoder().encode(settings) else {
             throw FluxgramSettingsStoreError.encoding
         }
@@ -119,7 +117,7 @@ enum FluxgramSettingsStore {
         }
     }
 
-    static func clear() throws {
+    public static func clear() throws {
         let status = SecItemDelete(self.query as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw FluxgramSettingsStoreError.unexpectedStatus(status)
@@ -132,7 +130,6 @@ private enum FluxgramSettingsSection: Int32 {
     case ai
     case credentials
     case actions
-    case experiments
     case about
 }
 
@@ -152,11 +149,13 @@ private enum FluxgramSettingsEntry: ItemListNodeEntry {
     case aiInfo
     case testConnection
     case connectionStatus(String)
+    case loginTelegram
+    case logoutTelegram
     case downloads
     case notifyStatus
+    case mihomo
+    case rules
     case clear
-    case experimentsHeader
-    case themePreview
     case aboutHeader
     case aboutInfo(String)
 
@@ -168,10 +167,8 @@ private enum FluxgramSettingsEntry: ItemListNodeEntry {
             return FluxgramSettingsSection.ai.rawValue
         case .credentialsHeader, .accessToken, .notifyStatusToken:
             return FluxgramSettingsSection.credentials.rawValue
-        case .testConnection, .connectionStatus, .downloads, .notifyStatus, .clear:
+        case .testConnection, .connectionStatus, .loginTelegram, .logoutTelegram, .downloads, .notifyStatus, .mihomo, .rules, .clear:
             return FluxgramSettingsSection.actions.rawValue
-        case .experimentsHeader, .themePreview:
-            return FluxgramSettingsSection.experiments.rawValue
         case .aboutHeader, .aboutInfo:
             return FluxgramSettingsSection.about.rawValue
         }
@@ -209,20 +206,24 @@ private enum FluxgramSettingsEntry: ItemListNodeEntry {
             return 13
         case .connectionStatus:
             return 14
-        case .downloads:
-            return 15
-        case .notifyStatus:
+        case .logoutTelegram:
             return 16
-        case .clear:
+        case .loginTelegram:
+            return 15
+        case .downloads:
             return 17
-        case .experimentsHeader:
+        case .notifyStatus:
             return 18
-        case .themePreview:
+        case .mihomo:
             return 19
-        case .aboutHeader:
+        case .rules:
             return 20
-        case .aboutInfo:
+        case .clear:
             return 21
+        case .aboutHeader:
+            return 22
+        case .aboutInfo:
+            return 23
         }
     }
 
@@ -430,6 +431,14 @@ private enum FluxgramSettingsEntry: ItemListNodeEntry {
                 text: .plain(text),
                 sectionId: self.section
             )
+        case .logoutTelegram:
+            return ItemListActionItem(presentationData: presentationData, systemStyle: fluxgramItemListSystemStyle, title: "退出 NAS Telegram 会话", kind: .destructive, alignment: .natural, sectionId: self.section, style: .blocks, action: {
+                arguments.logoutTelegram()
+            })
+        case .loginTelegram:
+            return ItemListActionItem(presentationData: presentationData, systemStyle: fluxgramItemListSystemStyle, title: "登录 NAS Telegram", kind: .generic, alignment: .natural, sectionId: self.section, style: .blocks, action: {
+                arguments.loginTelegram()
+            })
         case .downloads:
             return ItemListDisclosureItem(
                 presentationData: presentationData,
@@ -460,6 +469,34 @@ private enum FluxgramSettingsEntry: ItemListNodeEntry {
                     arguments.openNotifyStatus()
                 }
             )
+        case .mihomo:
+            return ItemListDisclosureItem(
+                presentationData: presentationData,
+                systemStyle: fluxgramItemListSystemStyle,
+                title: "Mihomo 管理",
+                label: "订阅、节点与代理组",
+                labelStyle: .text,
+                sectionId: self.section,
+                style: .blocks,
+                disclosureStyle: .arrow,
+                action: {
+                    arguments.openMihomo()
+                }
+            )
+        case .rules:
+            return ItemListDisclosureItem(
+                presentationData: presentationData,
+                systemStyle: fluxgramItemListSystemStyle,
+                title: "整理规则",
+                label: "查看 AI 识别、命名和去重逻辑",
+                labelStyle: .text,
+                sectionId: self.section,
+                style: .blocks,
+                disclosureStyle: .arrow,
+                action: {
+                    arguments.openRules()
+                }
+            )
         case .clear:
             return ItemListActionItem(
                 presentationData: presentationData,
@@ -471,22 +508,6 @@ private enum FluxgramSettingsEntry: ItemListNodeEntry {
                 style: .blocks,
                 action: {
                     arguments.clear()
-                }
-            )
-        case .experimentsHeader:
-            return ItemListSectionHeaderItem(presentationData: presentationData, text: "实验功能", sectionId: self.section)
-        case .themePreview:
-            return ItemListDisclosureItem(
-                presentationData: presentationData,
-                systemStyle: .glass,
-                title: "主题预览",
-                label: "Fluxgram 高级风格",
-                labelStyle: .text,
-                sectionId: self.section,
-                style: .blocks,
-                disclosureStyle: .arrow,
-                action: {
-                    arguments.openThemePreview()
                 }
             )
         case .aboutHeader:
@@ -508,24 +529,33 @@ private enum FluxgramSettingsEntry: ItemListNodeEntry {
 private final class FluxgramSettingsControllerArguments {
     let updateState: ((FluxgramSettings) -> FluxgramSettings) -> Void
     let testConnection: () -> Void
+    let loginTelegram: () -> Void
+    let logoutTelegram: () -> Void
     let openDownloads: () -> Void
     let openNotifyStatus: () -> Void
-    let openThemePreview: () -> Void
+    let openMihomo: () -> Void
+    let openRules: () -> Void
     let clear: () -> Void
 
     init(
         updateState: @escaping ((FluxgramSettings) -> FluxgramSettings) -> Void,
         testConnection: @escaping () -> Void,
+        loginTelegram: @escaping () -> Void,
+        logoutTelegram: @escaping () -> Void,
         openDownloads: @escaping () -> Void,
         openNotifyStatus: @escaping () -> Void,
-        openThemePreview: @escaping () -> Void,
+        openMihomo: @escaping () -> Void,
+        openRules: @escaping () -> Void,
         clear: @escaping () -> Void
     ) {
         self.updateState = updateState
         self.testConnection = testConnection
+        self.loginTelegram = loginTelegram
+        self.logoutTelegram = logoutTelegram
         self.openDownloads = openDownloads
         self.openNotifyStatus = openNotifyStatus
-        self.openThemePreview = openThemePreview
+        self.openMihomo = openMihomo
+        self.openRules = openRules
         self.clear = clear
     }
 }
@@ -551,11 +581,13 @@ private func fluxgramSettingsEntries(settings: FluxgramSettings, connectionStatu
         .notifyStatusToken(settings.notifyStatusToken),
         .testConnection,
         .connectionStatus(connectionStatus),
+        .loginTelegram,
+        .logoutTelegram,
         .downloads,
         .notifyStatus,
+        .mihomo,
+        .rules,
         .clear,
-        .experimentsHeader,
-        .themePreview,
         .aboutHeader,
         .aboutInfo(fluxgramAboutText())
     ]
@@ -730,6 +762,22 @@ public func fluxgramSettingsController(context: AccountContext) -> ViewControlle
         } catch {
             presentAlert("无法测试 NAS 连接。")
         }
+    }, loginTelegram: {
+        controller?.push(fluxgramTelegramLoginController(context: context, settings: stateValue.with { $0 }))
+    }, logoutTelegram: {
+        let settings = stateValue.with { $0 }
+        let presentationData = context.sharedContext.currentPresentationData.with { $0 }
+        controller?.present(standardTextAlertController(theme: AlertControllerTheme(presentationData: presentationData), title: "退出 NAS Telegram？", text: "这只会退出 NAS 后端会话，不会影响此 iPhone 的 Telegram 登录。", actions: [
+            TextAlertAction(type: .genericAction, title: presentationData.strings.Common_Cancel, action: {}),
+            TextAlertAction(type: .destructiveAction, title: "退出", action: {
+                FluxgramNASService.shared.logoutTelegram(settings: settings) { result in
+                    switch result {
+                    case .success: presentAlert("NAS Telegram 已退出。请在 NAS 网页重新登录。")
+                    case .failure(let error): presentAlert(error.localizedDescription)
+                    }
+                }
+            })
+        ]), in: .window(.root))
     }, openDownloads: {
         controller?.push(fluxgramDownloadsController(context: context))
     }, openNotifyStatus: {
@@ -741,8 +789,17 @@ public func fluxgramSettingsController(context: AccountContext) -> ViewControlle
         } catch {
             presentAlert("无法读取 NAS 监听状态。")
         }
-    }, openThemePreview: {
-        controller?.push(fluxgramThemePreviewController(context: context))
+    }, openMihomo: {
+        do {
+            let settings = try validatedSettings(stateValue.with { $0 })
+            controller?.push(fluxgramMihomoController(context: context, settings: settings))
+        } catch let error as FluxgramSettingsValidationError {
+            presentAlert(validationMessage(error))
+        } catch {
+            presentAlert("无法读取 Mihomo 管理服务。")
+        }
+    }, openRules: {
+        controller?.push(fluxgramRulesController(context: context))
     }, clear: {
         let presentationData = context.sharedContext.currentPresentationData.with { $0 }
         controller?.present(
@@ -803,6 +860,110 @@ public func fluxgramSettingsController(context: AccountContext) -> ViewControlle
         return (controllerState, (listState, arguments))
     }
 
+    let result = ItemListController(context: context, state: signal)
+    controller = result
+    return result
+}
+
+private struct FluxgramTelegramLoginState: Equatable {
+    var phoneNumber: String = ""
+    var code: String = ""
+    var password: String = ""
+    var status: String = "请先输入手机号并发送验证码。"
+}
+
+private enum FluxgramTelegramLoginEntry: ItemListNodeEntry {
+    case info
+    case phone(String)
+    case sendCode
+    case code(String)
+    case password(String)
+    case signIn
+    case status(String)
+
+    var section: ItemListSectionId { return 0 }
+    var stableId: Int32 {
+        switch self {
+        case .info: return 0
+        case .phone: return 1
+        case .sendCode: return 2
+        case .code: return 3
+        case .password: return 4
+        case .signIn: return 5
+        case .status: return 6
+        }
+    }
+    static func <(lhs: FluxgramTelegramLoginEntry, rhs: FluxgramTelegramLoginEntry) -> Bool { return lhs.stableId < rhs.stableId }
+
+    func item(presentationData: ItemListPresentationData, arguments: Any) -> ListViewItem {
+        let arguments = arguments as! FluxgramTelegramLoginArguments
+        switch self {
+        case .info:
+            return ItemListInfoItem(presentationData: presentationData, systemStyle: fluxgramItemListSystemStyle, title: "NAS Telegram 登录", text: .plain("此处只登录 NAS 后端的 Telegram，会恢复 NAS 下载，不会退出此 iPhone 上的 Telegram。"), style: .blocks, sectionId: self.section, closeAction: nil)
+        case let .phone(value):
+            return ItemListSingleLineInputItem(presentationData: presentationData, systemStyle: fluxgramItemListSystemStyle, title: NSAttributedString(string: "手机号", textColor: presentationData.theme.list.itemPrimaryTextColor), text: value, placeholder: "+86 13800138000", type: .regular(capitalization: false, autocorrection: false), clearType: .always, sectionId: self.section, textUpdated: { arguments.updatePhone($0) }, action: {})
+        case .sendCode:
+            return ItemListActionItem(presentationData: presentationData, systemStyle: fluxgramItemListSystemStyle, title: "发送验证码", kind: .generic, alignment: .natural, sectionId: self.section, style: .blocks, action: arguments.sendCode)
+        case let .code(value):
+            return ItemListSingleLineInputItem(presentationData: presentationData, systemStyle: fluxgramItemListSystemStyle, title: NSAttributedString(string: "验证码", textColor: presentationData.theme.list.itemPrimaryTextColor), text: value, placeholder: "Telegram 收到的验证码", type: .regular(capitalization: false, autocorrection: false), clearType: .always, sectionId: self.section, textUpdated: { arguments.updateCode($0) }, action: {})
+        case let .password(value):
+            return ItemListSingleLineInputItem(presentationData: presentationData, systemStyle: fluxgramItemListSystemStyle, title: NSAttributedString(string: "二步验证密码（如有）", textColor: presentationData.theme.list.itemPrimaryTextColor), text: value, placeholder: "没有可留空", type: .password, clearType: .always, sectionId: self.section, textUpdated: { arguments.updatePassword($0) }, action: {})
+        case .signIn:
+            return ItemListActionItem(presentationData: presentationData, systemStyle: fluxgramItemListSystemStyle, title: "登录 NAS Telegram", kind: .generic, alignment: .natural, sectionId: self.section, style: .blocks, action: arguments.signIn)
+        case let .status(value):
+            return ItemListTextItem(presentationData: presentationData, text: .plain(value), sectionId: self.section)
+        }
+    }
+}
+
+private final class FluxgramTelegramLoginArguments {
+    let updatePhone: (String) -> Void
+    let updateCode: (String) -> Void
+    let updatePassword: (String) -> Void
+    let sendCode: () -> Void
+    let signIn: () -> Void
+    init(updatePhone: @escaping (String) -> Void, updateCode: @escaping (String) -> Void, updatePassword: @escaping (String) -> Void, sendCode: @escaping () -> Void, signIn: @escaping () -> Void) {
+        self.updatePhone = updatePhone
+        self.updateCode = updateCode
+        self.updatePassword = updatePassword
+        self.sendCode = sendCode
+        self.signIn = signIn
+    }
+}
+
+private func fluxgramTelegramLoginController(context: AccountContext, settings: FluxgramSettings) -> ViewController {
+    let stateValue = Atomic(value: FluxgramTelegramLoginState())
+    let statePromise = ValuePromise(stateValue.with { $0 }, ignoreRepeated: true)
+    var controller: ItemListController?
+    let update: ((inout FluxgramTelegramLoginState) -> Void) -> Void = { f in
+        statePromise.set(stateValue.modify { state in var state = state; f(&state); return state })
+    }
+    let presentError: (String) -> Void = { message in
+        let presentationData = context.sharedContext.currentPresentationData.with { $0 }
+        controller?.present(standardTextAlertController(theme: AlertControllerTheme(presentationData: presentationData), title: nil, text: message, actions: [TextAlertAction(type: .defaultAction, title: presentationData.strings.Common_OK, action: {})]), in: .window(.root))
+    }
+    let arguments = FluxgramTelegramLoginArguments(updatePhone: { value in update { $0.phoneNumber = value } }, updateCode: { value in update { $0.code = value } }, updatePassword: { value in update { $0.password = value } }, sendCode: {
+        let phone = stateValue.with { $0.phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines) }
+        guard !phone.isEmpty else { presentError("请输入手机号。"); return }
+        update { $0.status = "正在发送验证码…" }
+        FluxgramNASService.shared.sendTelegramLoginCode(settings: settings, phoneNumber: phone) { result in
+            switch result { case .success: update { $0.status = "验证码已发送，请填写验证码后登录。" }; case .failure(let error): update { $0.status = "发送失败：\(error.localizedDescription)" } }
+        }
+    }, signIn: {
+        let state = stateValue.with { $0 }
+        let phone = state.phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+        let code = state.code.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !phone.isEmpty, !code.isEmpty else { presentError("请填写手机号和验证码。"); return }
+        update { $0.status = "正在登录 NAS Telegram…" }
+        FluxgramNASService.shared.signInTelegram(settings: settings, phoneNumber: phone, code: code, password: state.password) { result in
+            switch result { case .success: update { $0.status = "NAS Telegram 已登录，可以返回继续下载。" }; case .failure(let error): update { $0.status = "登录失败：\(error.localizedDescription)" } }
+        }
+    })
+    let signal = combineLatest(context.sharedContext.presentationData, statePromise.get()) |> deliverOnMainQueue |> map { presentationData, state -> (ItemListControllerState, (ItemListNodeState, FluxgramTelegramLoginArguments)) in
+        let controllerState = ItemListControllerState(presentationData: ItemListPresentationData(presentationData), title: .text("登录 NAS Telegram"), leftNavigationButton: nil, rightNavigationButton: nil, backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back), animateChanges: false)
+        let entries: [FluxgramTelegramLoginEntry] = [.info, .phone(state.phoneNumber), .sendCode, .code(state.code), .password(state.password), .signIn, .status(state.status)]
+        return (controllerState, (ItemListNodeState(presentationData: ItemListPresentationData(presentationData), entries: entries, style: .blocks, emptyStateItem: nil, animateChanges: false), arguments))
+    }
     let result = ItemListController(context: context, state: signal)
     controller = result
     return result
