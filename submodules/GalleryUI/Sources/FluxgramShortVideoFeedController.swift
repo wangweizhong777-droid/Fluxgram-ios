@@ -9,6 +9,7 @@ import TelegramPresentationData
 import TelegramUniversalVideoContent
 import AccountContext
 import UniversalMediaPlayer
+import AvatarNode
 
 private enum FluxgramShortVideoPlaybackStore {
     private static let keyPrefix = "com.fluxgram.ios.short-video-playback.v1."
@@ -69,6 +70,7 @@ private enum FluxgramShortVideoPlaybackStore {
 }
 
 private final class FluxgramShortVideoCell: UICollectionViewCell {
+    private static let avatarSize: CGFloat = 48.0
     private let videoContainer = UIView()
     private let titleLabel = UILabel()
     private let captionLabel = UILabel()
@@ -80,6 +82,7 @@ private final class FluxgramShortVideoCell: UICollectionViewCell {
     private let actionLabels = ["原消息", "下载", "音量"]
     private var actionTextLabels: [UILabel] = []
     private let avatarView = UIImageView()
+    private let avatarDisposable = MetaDisposable()
     private let progressSlider = UISlider()
     private let activityIndicator = UIActivityIndicatorView(style: .large)
     private var videoNode: UniversalVideoNode?
@@ -156,8 +159,9 @@ private final class FluxgramShortVideoCell: UICollectionViewCell {
         self.sourceButton.addTarget(self, action: #selector(self.sourceMessagePressed), for: .touchUpInside)
         self.contentView.addSubview(self.sourceButton)
         self.avatarView.backgroundColor = UIColor.white.withAlphaComponent(0.18)
-        self.avatarView.layer.cornerRadius = 24
+        self.avatarView.layer.cornerRadius = Self.avatarSize / 2.0
         self.avatarView.clipsToBounds = true
+        self.avatarView.contentMode = .scaleAspectFill
         self.avatarView.image = UIImage(systemName: "person.2.fill")
         self.avatarView.tintColor = .white
         self.contentView.addSubview(self.avatarView)
@@ -183,12 +187,15 @@ private final class FluxgramShortVideoCell: UICollectionViewCell {
     deinit {
         self.savePlaybackPosition()
         self.statusDisposable.dispose()
+        self.avatarDisposable.dispose()
     }
 
     override func prepareForReuse() {
         super.prepareForReuse()
         self.savePlaybackPosition()
         self.statusDisposable.set(nil)
+        self.avatarDisposable.set(nil)
+        self.avatarView.image = UIImage(systemName: "person.2.fill")
         self.videoNode?.canAttachContent = false
         self.videoNode?.removeFromSupernode()
         self.videoNode?.view.removeFromSuperview()
@@ -224,7 +231,7 @@ private final class FluxgramShortVideoCell: UICollectionViewCell {
         self.timeLabel.frame = CGRect(x: self.contentView.bounds.width - 126.0, y: bottom - 41.0, width: 108.0, height: 18.0)
         let x = self.contentView.bounds.width - 68.0
         let y = self.contentView.bounds.height * 0.42
-        self.avatarView.frame = CGRect(x: x, y: y, width: 48, height: 48)
+        self.avatarView.frame = CGRect(x: x, y: y, width: Self.avatarSize, height: Self.avatarSize)
         self.sourceButton.frame = CGRect(x: x + 4, y: y + 68, width: 40, height: 40)
         self.downloadButton.frame = CGRect(x: x + 4, y: y + 124, width: 40, height: 40)
         self.muteButton.frame = CGRect(x: x + 4, y: y + 180, width: 40, height: 40)
@@ -238,6 +245,7 @@ private final class FluxgramShortVideoCell: UICollectionViewCell {
         self.positionLabel.text = "\(position + 1) / \(total)"
         self.titleLabel.text = message.effectiveAuthor.flatMap(EnginePeer.init)?.displayTitle(strings: context.sharedContext.currentPresentationData.with { $0 }.strings, displayOrder: context.sharedContext.currentPresentationData.with { $0 }.nameDisplayOrder) ?? "短视频"
         self.captionLabel.text = message.text.isEmpty ? "短视频流" : message.text
+        self.updateSourceAvatar(context: context, message: message)
 
         guard let file = message.media.compactMap({ $0 as? TelegramMediaFile }).first(where: { $0.isVideo || $0.isInstantVideo }) else {
             return
@@ -301,6 +309,23 @@ private final class FluxgramShortVideoCell: UICollectionViewCell {
         }
         self.statusDisposable.set((videoNode.status |> deliverOnMainQueue).start(next: { [weak self] status in
             self?.updateStatus(status)
+        }))
+    }
+
+    private func updateSourceAvatar(context: AccountContext, message: Message) {
+        // Use the source conversation, not the sender or forwarded-message author.
+        let sourcePeerId = message.id.peerId
+        let cachedPeer = message.peers[sourcePeerId].map(EnginePeer.init)
+        let image = context.engine.data.get(TelegramEngine.EngineData.Item.Peer.Peer(id: sourcePeerId))
+        |> mapToSignal { peer -> Signal<UIImage?, NoError> in
+            guard let peer = peer ?? cachedPeer, !peer.profileImageRepresentations.isEmpty else {
+                return .single(nil)
+            }
+            return peerAvatarCompleteImage(account: context.account, peer: peer, size: CGSize(width: Self.avatarSize, height: Self.avatarSize), round: false)
+        }
+        self.avatarDisposable.set((image |> deliverOnMainQueue).start(next: { [weak self] image in
+            guard let self, self.message?.id == message.id else { return }
+            self.avatarView.image = image?.withRenderingMode(.alwaysOriginal) ?? UIImage(systemName: "person.2.fill")
         }))
     }
 
