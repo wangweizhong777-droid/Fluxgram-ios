@@ -262,11 +262,17 @@ public final class FluxgramAIService {
                 return
             }
             guard (200..<300).contains(httpResponse.statusCode) else {
-                // Relay services may expose a stale/alias model or an upstream
-                // provider may temporarily reject one model. Discover a
-                // different currently available model once before surfacing
-                // the 5xx error to the user.
-                if allowModelFallback, httpResponse.statusCode >= 500 {
+                // A relay's model catalog can include models unavailable to
+                // this account. Retry once for explicit model rejection or 5xx.
+                if allowModelFallback, Self.shouldRetryModel(data: data, statusCode: httpResponse.statusCode) {
+                    self.modelCacheLock.lock()
+                    if let cached = self.cachedModel,
+                       cached.baseURL == baseURL.absoluteString,
+                       cached.credentialFingerprint == Self.credentialFingerprint(apiKey),
+                       cached.model == model {
+                        self.cachedModel = nil
+                    }
+                    self.modelCacheLock.unlock()
                     self.fetchModelExcluding(baseURL: baseURL, apiKey: apiKey, excluding: model) { fallback in
                         guard let fallback, fallback != model else {
                             DispatchQueue.main.async {
@@ -289,6 +295,7 @@ public final class FluxgramAIService {
                 }
                 return
             }
+            self.cacheModel(model, for: baseURL, apiKey: apiKey)
             DispatchQueue.main.async {
                 completion(.success(FluxgramAIResult(model: model, text: result)))
             }
@@ -309,10 +316,8 @@ public final class FluxgramAIService {
                 DispatchQueue.main.async { completion(nil) }
                 return
             }
-            let model = models.modelIds.first(where: { $0 != excluding })
-            if let model {
-                self.cacheModel(model, for: baseURL, apiKey: apiKey)
-            }
+            let candidates = models.modelIds.filter { $0 != excluding }
+            let model = self.preferredFallbackModels.first(where: { candidates.contains($0) }) ?? candidates.first
             DispatchQueue.main.async { completion(model) }
         }.resume()
     }
@@ -349,6 +354,20 @@ public final class FluxgramAIService {
         let headEnd = trimmed.index(trimmed.startIndex, offsetBy: headCount)
         let tailStart = trimmed.index(trimmed.endIndex, offsetBy: -tailCount)
         return String(trimmed[..<headEnd]) + "\n…（中间文字已截断，仅发送摘要）…\n" + String(trimmed[tailStart...])
+    }
+
+    private static func shouldRetryModel(data: Data, statusCode: Int) -> Bool {
+        if (500..<600).contains(statusCode) {
+            return true
+        }
+        guard [400, 404, 422].contains(statusCode),
+              let decoded = try? JSONDecoder().decode(FluxgramAIErrorResponse.self, from: data) else {
+            return false
+        }
+        let message = (decoded.error?.message ?? decoded.message ?? "").lowercased()
+        return message.contains("model") && [
+            "not supported", "not found", "does not exist", "not available", "no available channel"
+        ].contains(where: { message.contains($0) })
     }
 
     private static func serverMessage(data: Data, statusCode: Int) -> String {

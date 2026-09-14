@@ -343,9 +343,20 @@ private final class FluxgramShortVideoCell: UICollectionViewCell {
             }
             self.startPlaybackIfReady(videoNode)
         } else {
-            self.isPlaybackRequested = false
+            // Pause while content is still attached; detaching first makes
+            // UniversalVideoNode.pause() a no-op.
             videoNode.pause()
+            self.isPlaybackRequested = false
+            videoNode.canAttachContent = false
         }
+    }
+
+    func pauseForExternalController() {
+        self.isActive = false
+        self.isPlaybackRequested = false
+        guard let videoNode = self.videoNode else { return }
+        videoNode.pause()
+        videoNode.canAttachContent = false
     }
 
     private func startPlaybackIfReady(_ videoNode: UniversalVideoNode) {
@@ -476,6 +487,7 @@ private final class FluxgramShortVideoCell: UICollectionViewCell {
         guard let message = self.message else {
             return
         }
+        self.pauseForExternalController()
         self.downloadRequested?(message)
     }
 
@@ -535,12 +547,21 @@ public final class FluxgramShortVideoFeedController: ViewController, UICollectio
     private let tapGesture = UITapGestureRecognizer()
     private var currentIndex = 0
     private var didActivateInitialCell = false
+    private var isPausedForExternalController = false
     private var interactivePopGestureWasEnabled: Bool?
     private var prefetchDisposables = [MetaDisposable(), MetaDisposable(), MetaDisposable()]
     private var viewedIndexes = Set<Int>()
     public var downloadRequested: ((EngineRawMessage) -> Void)?
     public var sourceMessageRequested: ((EngineRawMessage) -> Void)?
     public var messageViewed: ((EngineRawMessage) -> Void)?
+
+    public func pauseForExternalController() {
+        self.isPausedForExternalController = true
+        for case let cell as FluxgramShortVideoCell in self.collectionView.visibleCells {
+            cell.pauseForExternalController()
+        }
+        self.updatePlayback()
+    }
 
     public init(context: AccountContext, messages: [EngineRawMessage]) {
         self.context = context
@@ -615,6 +636,7 @@ public final class FluxgramShortVideoFeedController: ViewController, UICollectio
 
     override public func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        self.isPausedForExternalController = false
         if let gesture = self.navigationController?.interactivePopGestureRecognizer {
             self.interactivePopGestureWasEnabled = gesture.isEnabled
             gesture.isEnabled = false
@@ -624,6 +646,12 @@ public final class FluxgramShortVideoFeedController: ViewController, UICollectio
 
     override public func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
+        // The download controller can be presented without removing this feed
+        // from the navigation stack, so stop playback at the lifecycle boundary.
+        self.isPausedForExternalController = true
+        for case let cell as FluxgramShortVideoCell in self.collectionView.visibleCells {
+            cell.setPlayback(active: false, preload: false)
+        }
         self.restoreInteractivePopGesture()
     }
 
@@ -767,6 +795,9 @@ public final class FluxgramShortVideoFeedController: ViewController, UICollectio
     }
 
     private func updatePlayback() {
+        if self.isPausedForExternalController {
+            return
+        }
         for case let cell as FluxgramShortVideoCell in self.collectionView.visibleCells {
             guard let indexPath = self.collectionView.indexPath(for: cell) else {
                 continue

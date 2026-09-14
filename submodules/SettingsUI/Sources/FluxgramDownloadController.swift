@@ -714,6 +714,19 @@ private struct FluxgramDownloadMetadataResult {
     let isJapaneseName: Bool?
 }
 
+/// Returns a stable key for performer comparison while leaving the displayed
+/// name untouched. Traditional and simplified Chinese variants therefore
+/// represent the same performer when AI returns both forms.
+private func fluxgramPerformerComparisonKey(_ value: String) -> String {
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    let simplified = trimmed.applyingTransform(StringTransform("Hant-Hans"), reverse: false) ?? trimmed
+    return simplified
+        .lowercased()
+        .components(separatedBy: .whitespacesAndNewlines)
+        .filter { !$0.isEmpty }
+        .joined()
+}
+
 private func fluxgramParseDownloadMetadata(_ text: String) -> FluxgramDownloadMetadataResult? {
     var authors: [String] = []
     var title = ""
@@ -736,10 +749,16 @@ private func fluxgramParseDownloadMetadata(_ text: String) -> FluxgramDownloadMe
             continue
         }
         if label.contains("作者") || label.contains("主演") || label.contains("author") {
-            authors = value
+            let candidates = value
                 .components(separatedBy: CharacterSet(charactersIn: "、,，;；|/"))
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty && $0 != "未识别" }
+            var seen = Set<String>()
+            authors = candidates.filter { candidate in
+                let key = fluxgramPerformerComparisonKey(candidate)
+                guard !key.isEmpty else { return false }
+                return seen.insert(key).inserted
+            }
         } else if label.contains("标题") || label.contains("title") {
             title = value
         } else if label.contains("关键词") || label.contains("标签") || label.contains("keyword") || label.contains("tag") {
@@ -892,7 +911,7 @@ private func fluxgramNASFolderPickerController(context: AccountContext, selected
     return result
 }
 
-public func fluxgramDownloadFolderActionSheet(context: AccountContext, dialogId: Int64, messageId: Int32, peerAccessHash: String?, directDocument: FluxgramNASDirectDocument?, directDownloads: [FluxgramNASDirectDownload] = [], downloadRequests: [FluxgramNASDownloadRequest] = [], defaultDownloadSubdir: String? = nil, sourceLabel: String = "", sourceText: String = "", metadataSourceText: String = "", present: @escaping (ViewController) -> Void) {
+public func fluxgramDownloadFolderActionSheet(context: AccountContext, dialogId: Int64, messageId: Int32, peerAccessHash: String?, directDocument: FluxgramNASDirectDocument?, directDownloads: [FluxgramNASDirectDownload] = [], downloadRequests: [FluxgramNASDownloadRequest] = [], defaultDownloadSubdir: String? = nil, defaultAuthorName: String? = nil, sourceLabel: String = "", sourceText: String = "", metadataSourceText: String = "", present: @escaping (ViewController) -> Void) {
     let requests: [FluxgramNASDownloadRequest]
     if !downloadRequests.isEmpty {
         requests = downloadRequests
@@ -929,6 +948,8 @@ public func fluxgramDownloadFolderActionSheet(context: AccountContext, dialogId:
         sourceLabel: sourceLabel,
         sourceText: sourceText,
         metadataSourceText: resolvedMetadataSourceText
+        , defaultAuthorName: defaultAuthorName
+        , defaultDownloadSubdir: defaultDownloadSubdir
     ))
     return
 
@@ -1117,7 +1138,7 @@ public func fluxgramDownloadFolderActionSheet(context: AccountContext, dialogId:
     }
 }
 
-public func fluxgramDownloadController(context: AccountContext, dialogId: Int64, messageId: Int32, peerAccessHash: String?, directDocument: FluxgramNASDirectDocument?, directDownloads: [FluxgramNASDirectDownload] = [], downloadRequests: [FluxgramNASDownloadRequest] = [], sourceLabel: String = "", sourceText: String = "", metadataSourceText: String = "") -> ViewController {
+public func fluxgramDownloadController(context: AccountContext, dialogId: Int64, messageId: Int32, peerAccessHash: String?, directDocument: FluxgramNASDirectDocument?, directDownloads: [FluxgramNASDirectDownload] = [], downloadRequests: [FluxgramNASDownloadRequest] = [], sourceLabel: String = "", sourceText: String = "", metadataSourceText: String = "", defaultAuthorName: String? = nil, defaultDownloadSubdir: String? = nil) -> ViewController {
     let resolvedDownloadRequests: [FluxgramNASDownloadRequest]
     if !downloadRequests.isEmpty {
         resolvedDownloadRequests = downloadRequests
@@ -1143,12 +1164,16 @@ public func fluxgramDownloadController(context: AccountContext, dialogId: Int64,
         : metadataSourceText.trimmingCharacters(in: .whitespacesAndNewlines)
     let detectedCode = fluxgramDownloadCode(from: groupSourceText) ?? ""
     var rootDirectories: [String] = []
-    let initialAuthor = metadataSuggestion.author.isEmpty && fluxgramIsFC2DownloadCode(detectedCode)
+    let initialAuthor = defaultAuthorName ?? (metadataSuggestion.author.isEmpty && fluxgramIsFC2DownloadCode(detectedCode)
         ? "素人"
-        : metadataSuggestion.author
+        : metadataSuggestion.author)
+    let initialDownloadSubdir = defaultDownloadSubdir ?? metadataSuggestion.author
+    let hasForcedInitialDestination = defaultDownloadSubdir != nil
+    let forcedAuthor = defaultAuthorName
+    let forcedDestination = defaultDownloadSubdir
     let initialState = FluxgramDownloadControllerState(
         authorName: initialAuthor,
-        downloadSubdir: metadataSuggestion.author,
+        downloadSubdir: forcedDestination ?? initialDownloadSubdir,
         isRootDestinationSelected: false,
         title: metadataSuggestion.title,
         note: "",
@@ -1159,7 +1184,7 @@ public func fluxgramDownloadController(context: AccountContext, dialogId: Int64,
         detectedCode: detectedCode,
         isJapaneseName: false,
         useClassicPath: false,
-        destinationManuallyEdited: false,
+        destinationManuallyEdited: defaultDownloadSubdir != nil,
         isAnalyzing: false,
         isCheckingDestination: false,
         isSubmitting: false,
@@ -1263,7 +1288,9 @@ public func fluxgramDownloadController(context: AccountContext, dialogId: Int64,
                         if let detectedCode = fluxgramDownloadCode(from: combinedMetadataText) {
                             state.detectedCode = detectedCode
                         }
-                        if !selectedAuthor.isEmpty {
+                        if let forcedAuthor {
+                            state.authorName = forcedAuthor
+                        } else if !selectedAuthor.isEmpty {
                             state.authorName = selectedAuthor
                         } else if parsed.authors.isEmpty,
                                   state.authorName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
@@ -1283,9 +1310,14 @@ public func fluxgramDownloadController(context: AccountContext, dialogId: Int64,
                         // A numbered work with a Japanese performer defaults
                         // to the classic library path, but remains editable.
                         state.useClassicPath = state.isJapaneseName && !state.detectedCode.isEmpty
-                        state.destinationManuallyEdited = false
+                        if forcedDestination == nil {
+                            state.destinationManuallyEdited = false
+                        }
                         state.isRootDestinationSelected = false
-                        if !state.destinationManuallyEdited {
+                        if let forcedDestination {
+                            state.downloadSubdir = forcedDestination
+                            state.destinationManuallyEdited = true
+                        } else if !state.destinationManuallyEdited {
                             state.downloadSubdir = fluxgramRecommendedDownloadSubdir(
                                 author: state.authorName,
                                 code: state.detectedCode,
@@ -1329,15 +1361,26 @@ public func fluxgramDownloadController(context: AccountContext, dialogId: Int64,
             // Changing the performer starts a new recommendation. This also
             // prevents an old manually selected folder from being reused for
             // a different performer.
-            state.destinationManuallyEdited = false
+            if !(hasForcedInitialDestination && state.authorName == (defaultAuthorName ?? "")) {
+                state.destinationManuallyEdited = false
+            }
+            if let forcedAuthor {
+                state.authorName = forcedAuthor
+            }
+            if let forcedDestination {
+                state.downloadSubdir = forcedDestination
+                state.destinationManuallyEdited = true
+            }
             state.isRootDestinationSelected = false
-            state.downloadSubdir = fluxgramRecommendedDownloadSubdir(
+            if forcedDestination == nil && !state.destinationManuallyEdited {
+                state.downloadSubdir = fluxgramRecommendedDownloadSubdir(
                 author: state.authorName,
                 code: state.detectedCode,
                 isJapaneseName: state.isJapaneseName,
                 useClassicPath: state.useClassicPath,
                 rootDirectories: rootDirectories
-            )
+                )
+            }
             return state
         }
     }
@@ -1453,7 +1496,10 @@ public func fluxgramDownloadController(context: AccountContext, dialogId: Int64,
         rootDirectories = (directories ?? []).filter { $0.split(separator: "/", omittingEmptySubsequences: true).count == 1 }
         updateState { state in
             var state = state
-            if !state.destinationManuallyEdited {
+            if let forcedDestination {
+                state.downloadSubdir = forcedDestination
+                state.destinationManuallyEdited = true
+            } else if !state.destinationManuallyEdited {
                 state.isRootDestinationSelected = false
                 state.downloadSubdir = fluxgramRecommendedDownloadSubdir(
                     author: state.authorName,

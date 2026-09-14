@@ -505,6 +505,7 @@ public func fluxgramShortVideoController(context: AccountContext) -> ViewControl
             FluxgramShortVideoPlaybackHistory.markPlayed(message)
         }
         feed.downloadRequested = { [weak feed] message in
+            feed?.pauseForExternalController()
             let downloadRequest = FluxgramNASDownloadRequest(
                 dialogId: message.id.peerId.toInt64(),
                 messageId: message.id.id,
@@ -529,9 +530,12 @@ public func fluxgramShortVideoController(context: AccountContext) -> ViewControl
                 peerAccessHash: nil,
                 directDocument: fluxgramShortVideoDirectDocument(message: message),
                 downloadRequests: [downloadRequest],
+                defaultDownloadSubdir: "不知名素人",
+                defaultAuthorName: "素人",
                 sourceLabel: message.peers[message.id.peerId]?.debugDisplayTitle ?? "",
                 sourceText: message.text,
                 present: { controller in
+                    feed?.pauseForExternalController()
                     feed?.present(controller, in: .window(.root))
                 }
             )
